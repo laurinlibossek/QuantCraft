@@ -2,21 +2,66 @@ package com.quantcraft.item;
 
 import com.quantcraft.market.*;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.Text;
 
 public class NewspaperEffects {
-    public static void apply(NewspaperItem.NewspaperType type, MinecraftServer server) {
+    public static void apply(NewspaperItem.NewspaperType type, MinecraftServer server, ServerPlayerEntity player) {
         MarketEngine e = MarketEngine.getInstance();
+        int before = e.getActiveEvents().size();
+
         switch (type) {
-            case DIAMOND_DISCOVERY -> { e.applyTickerPressure("DIAM", -35); e.applySectorPressure(MarketSector.MINING, -10); e.pushNewsPublic("BREAKING: Diamond find floods MINING sector"); }
-            case DRAGON_SLAIN      -> { e.applySectorPressure(MarketSector.ARCANE, -40); e.pushNewsPublic("BREAKING: Dragon slain — Arcane sector in freefall!"); }
-            case TRADE_WAR         -> { e.applySectorPressure(MarketSector.MANUFACTURED, -15); e.applySectorPressure(MarketSector.AGRARIAN, +10); e.pushNewsPublic("Trade war erupts — Manufactured down, Agrarian up"); }
-            case MINING_BOOM       -> { e.applyTickerPressure("IRON", -25); e.applyTickerPressure("COAL", -10); e.pushNewsPublic("New vein — Iron & Coal oversupplied"); }
-            case LUMBER_SHORTAGE   -> { e.applySectorPressure(MarketSector.LUMBER, +30); e.pushNewsPublic("Forest blight — Lumber sector soars"); }
-            case GOLD_RUSH         -> { e.applyTickerPressure("GOLD", -20); e.pushNewsPublic("Gold rush! GOLD tumbles on supply fears"); }
-            case HARVEST_FESTIVAL  -> { e.applySectorPressure(MarketSector.AGRARIAN, -20); e.pushNewsPublic("Record harvest — Agrarian oversupplied"); }
-            case ARCANE_ANOMALY    -> { e.applySectorPressure(MarketSector.ARCANE, +25); e.pushNewsPublic("Arcane anomaly spikes magical goods demand"); }
-            case LIVESTOCK_PLAGUE  -> { e.applySectorPressure(MarketSector.LIVESTOCK, -30); e.pushNewsPublic("Livestock plague — LIVESTOCK sector collapses"); }
-            case EMERALD_CARTEL    -> { e.applyTickerPressure("EMER", +40); e.applyTickerSustainedBoom("EMER", 10); e.pushNewsPublic("Villager cartel corners emerald supply — EMER rockets"); }
+            case DIAMOND_DISCOVERY -> e.addActiveEvent(new ActiveMarketEvent(
+                    "Diamond Discovery — DIAM supply flooded",
+                    "DIAM", null, -3.5, 15, server.getTicks()), player);
+            case DRAGON_SLAIN      -> e.addActiveEvent(new ActiveMarketEvent(
+                    "Dragon Slain — Arcane sector in freefall",
+                    null, MarketSector.ARCANE, -4.0, 15, server.getTicks()), player);
+            case TRADE_WAR         -> {
+                e.addActiveEvent(new ActiveMarketEvent(
+                        "Trade War — Manufacturing down, Agrarian surging",
+                        null, MarketSector.MANUFACTURED, -2.0, 20, server.getTicks()), player);
+                e.addActiveEvent(new ActiveMarketEvent(
+                        "Trade War — Agrarian surging on import ban",
+                        null, MarketSector.AGRARIAN, +1.5, 20, server.getTicks()), player);
+            }
+            case MINING_BOOM       -> {
+                e.addActiveEvent(new ActiveMarketEvent(
+                        "Mining Boom — IRON oversupplied",
+                        "IRON", null, -3.0, 15, server.getTicks()), player);
+                e.addActiveEvent(new ActiveMarketEvent(
+                        "Mining Boom — COAL oversupplied",
+                        "COAL", null, -1.5, 15, server.getTicks()), player);
+            }
+            case LUMBER_SHORTAGE   -> e.addActiveEvent(new ActiveMarketEvent(
+                    "Lumber Shortage — LMBR sector surging",
+                    null, MarketSector.LUMBER, +3.5, 20, server.getTicks()), player);
+            case GOLD_RUSH         -> e.addActiveEvent(new ActiveMarketEvent(
+                    "Gold Rush — GOLD supply flooded",
+                    "GOLD", null, -3.0, 15, server.getTicks()), player);
+            case HARVEST_FESTIVAL  -> e.addActiveEvent(new ActiveMarketEvent(
+                    "Harvest Festival — Agrarian oversupplied",
+                    null, MarketSector.AGRARIAN, -2.5, 15, server.getTicks()), player);
+            case ARCANE_ANOMALY    -> e.addActiveEvent(new ActiveMarketEvent(
+                    "Arcane Anomaly — magical demand spiking",
+                    null, MarketSector.ARCANE, +3.0, 15, server.getTicks()), player);
+            case LIVESTOCK_PLAGUE  -> e.addActiveEvent(new ActiveMarketEvent(
+                    "Livestock Plague — LIVE sector collapsing",
+                    null, MarketSector.LIVESTOCK, -4.0, 20, server.getTicks()), player);
+            case EMERALD_CARTEL    -> e.addActiveEvent(new ActiveMarketEvent(
+                    "Emerald Cartel — EMER cornered",
+                    "EMER", null, +4.0, 20, server.getTicks()), player);
+        }
+
+        java.util.List<ActiveMarketEvent> allEvents = e.getActiveEvents();
+        java.util.Set<String> broadcast = new java.util.LinkedHashSet<>();
+        for (int i = before; i < allEvents.size(); i++) broadcast.add(allEvents.get(i).getHeadline());
+        for (String headline : broadcast) {
+            player.sendMessage(Text.literal("§6[Breaking News] §e" + headline), true);
+            server.getPlayerManager().getPlayerList().forEach(p -> {
+                if (!p.getUuid().equals(player.getUuid()))
+                    p.sendMessage(Text.literal("§6[Breaking News] §e" + headline), false);
+            });
         }
     }
 }

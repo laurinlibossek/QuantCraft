@@ -88,12 +88,14 @@ public class CommodityExchangeScreen extends HandledScreen<CommodityExchangeScre
     }
 
     @Override public boolean mouseClicked(double mx, double my, int btn) {
-        int x  = (width - backgroundWidth) / 2, y = (height - backgroundHeight) / 2;
-        int ly = (int)my - y;
-        if (ly >= 38 && ly < 38 + ROWS * ROW_H && (int)mx - x < 205) {
-            int row = scroll + (ly - 38) / ROW_H;
-            if (row >= 0 && row < handler.rows.size() && client != null)
-                client.interactionManager.clickButton(handler.syncId, row);
+        int x = (width - backgroundWidth) / 2, y = (height - backgroundHeight) / 2;
+        List<CommodityRow> rows = handler.rows;
+        for (int i = scroll; i < Math.min(rows.size(), scroll + ROWS); i++) {
+            int rowY = y + 38 + (i - scroll) * ROW_H;
+            if (my >= rowY && my < rowY + ROW_H && mx >= x && mx < x + 205) {
+                if (client != null) client.interactionManager.clickButton(handler.syncId, i);
+                return true;
+            }
         }
         return super.mouseClicked(mx, my, btn);
     }

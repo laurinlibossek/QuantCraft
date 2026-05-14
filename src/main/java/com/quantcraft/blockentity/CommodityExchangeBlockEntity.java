@@ -4,7 +4,7 @@ import com.quantcraft.market.*;
 import com.quantcraft.persistence.MarketPersistentState;
 import com.quantcraft.registry.ModBlockEntityTypes;
 import com.quantcraft.screen.CommodityExchangeScreenHandler;
-import io.netty.buffer.Unpooled; // TODO issue #4 — required for fallback createMenu() path
+import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;

@@ -29,6 +29,7 @@ public class ModPackets {
         ServerPlayNetworking.registerGlobalReceiver(C2S_UPDATE_QUOTRON, (server, player, handler, buf, resp) -> {
             long pos   = buf.readLong();
             int  count = buf.readInt();
+            if (count < 0 || count > QuotronBlockEntity.MAX_TRACKED) return;
             List<String> tickers = new ArrayList<>();
             for (int i = 0; i < count; i++) tickers.add(buf.readString());
             server.execute(() -> {
@@ -40,30 +41,39 @@ public class ModPackets {
         });
 
         ServerPlayNetworking.registerGlobalReceiver(C2S_NEWSPAPER_READ, (server, player, handler, buf, resp) -> {
-            int ordinal = buf.readInt();
+            buf.readInt(); // client-sent ordinal is ignored; type is read from the actual held item
             server.execute(() -> {
-                NewspaperItem.NewspaperType type = NewspaperItem.NewspaperType.values()[ordinal];
-                NewspaperEffects.apply(type, server);
-                ItemStack held = player.getMainHandStack();
-                if (held.getItem() instanceof NewspaperItem) held.decrement(1);
-                else {
-                    ItemStack off = player.getOffHandStack();
-                    if (off.getItem() instanceof NewspaperItem) off.decrement(1);
-                }
+                ItemStack main = player.getMainHandStack();
+                ItemStack off  = player.getOffHandStack();
+                NewspaperItem.NewspaperType type = null;
+                ItemStack source = null;
+                if (main.getItem() instanceof NewspaperItem ni) { type = ni.getType(); source = main; }
+                else if (off.getItem() instanceof NewspaperItem ni) { type = ni.getType(); source = off; }
+                if (type == null || source == null) return;
+                NewspaperEffects.apply(type, server, player);
+                source.decrement(1);
             });
         });
     }
 
     public static void broadcastMarketUpdate(MinecraftServer server, Map<String,StockState> snap) {
-        PacketByteBuf buf = PacketByteBufs.create();
-        buf.writeInt(snap.size());
+        // Serialize once to bytes, then give each player their own buffer so Netty
+        // doesn't release one player's buffer from under another.
+        PacketByteBuf template = PacketByteBufs.create();
+        template.writeInt(snap.size());
         for (var e : snap.entrySet()) {
-            buf.writeString(e.getKey());
-            buf.writeDouble(e.getValue().getCurrentPrice());
-            buf.writeDouble(e.getValue().getDailyChangePercent());
+            template.writeString(e.getKey());
+            template.writeDouble(e.getValue().getCurrentPrice());
+            template.writeDouble(e.getValue().getDailyChangePercent());
         }
-        for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList())
+        byte[] bytes = new byte[template.readableBytes()];
+        template.getBytes(template.readerIndex(), bytes);
+        template.release();
+        for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
+            PacketByteBuf buf = PacketByteBufs.create();
+            buf.writeBytes(bytes);
             ServerPlayNetworking.send(p, S2C_MARKET_UPDATE, buf);
+        }
     }
 
     public static void sendOpenQuotron(ServerPlayerEntity player, QuotronBlockEntity qbe, BlockPos pos) {

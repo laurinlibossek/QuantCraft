@@ -4,7 +4,7 @@ import com.quantcraft.market.*;
 import com.quantcraft.persistence.MarketPersistentState;
 import com.quantcraft.registry.ModBlockEntityTypes;
 import com.quantcraft.screen.TradingPostScreenHandler;
-import io.netty.buffer.Unpooled; // TODO issue #4 — required for fallback createMenu() path
+import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
@@ -60,6 +60,24 @@ public class TradingPostBlockEntity extends BlockEntity implements ExtendedScree
         var news = MarketEngine.getInstance().getRecentNews();
         buf.writeInt(news.size());
         news.forEach(buf::writeString);
+        if (world != null && world.getServer() != null) {
+            var ps     = MarketPersistentState.getOrCreate(world.getServer().getOverworld());
+            var shorts = ps.getShorts(player.getUuid());
+            buf.writeInt(shorts.size());
+            for (var sp : shorts) {
+                StockState ss  = MarketEngine.getInstance().getState(sp.getTicker());
+                double     cur = ss != null ? ss.getCurrentPrice() : sp.getOpenPrice();
+                buf.writeString(sp.getTicker());
+                buf.writeInt(sp.getShares());
+                buf.writeDouble(sp.getOpenPrice());
+                buf.writeDouble(cur);
+                buf.writeDouble(sp.getCurrentPnL(cur));
+                buf.writeDouble(sp.getAccruedFee());
+                buf.writeDouble(sp.getMarginReserve());
+            }
+        } else {
+            buf.writeInt(0);
+        }
     }
 
     @Override

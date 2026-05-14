@@ -3,13 +3,22 @@ package com.quantcraft.market;
 import com.quantcraft.persistence.MarketPersistentState;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.minecraft.text.Text;
+import net.minecraft.world.World;
 
 public class CommodityMarket {
     private static final CommodityMarket INSTANCE = new CommodityMarket();
     public static CommodityMarket getInstance() { return INSTANCE; }
     private CommodityMarket() {}
 
-    public boolean buyItem(ServerPlayerEntity player, String ticker, int qty, MarketPersistentState ps) {
+    private static final double TAX_RATE       = 0.05;
+    private static final double DAILY_CAP      = 500.0;
+
+    public synchronized boolean buyItem(ServerPlayerEntity player, String ticker, int qty, MarketPersistentState ps) {
+        if (!MarketEngine.getInstance().isMarketOpen()) {
+            player.sendMessage(Text.literal("§cThe market is closed. Trading resumes at dawn."), true);
+            return false;
+        }
         StockDefinition def = StockRegistry.get(ticker);
         StockState      ss  = MarketEngine.getInstance().getState(ticker);
         if (def == null || ss == null) return false;
@@ -24,16 +33,44 @@ public class CommodityMarket {
         return true;
     }
 
-    public boolean sellItem(ServerPlayerEntity player, String ticker, int qty, MarketPersistentState ps) {
+    public synchronized boolean sellItem(ServerPlayerEntity player, String ticker, int qty, MarketPersistentState ps) {
+        if (!MarketEngine.getInstance().isMarketOpen()) {
+            player.sendMessage(Text.literal("§cThe market is closed. Trading resumes at dawn."), true);
+            return false;
+        }
         StockDefinition def = StockRegistry.get(ticker);
         StockState      ss  = MarketEngine.getInstance().getState(ticker);
         if (def == null || ss == null) return false;
         int held = countItems(player, def);
         if (held < qty) return false;
-        double gain = def.getItemSellPrice(ss.getCurrentPrice()) * qty;
-        removeItems(player, def, qty);
-        ps.getPortfolio(player.getUuid()).addCoins(gain);
-        ss.applyEventPressure(-qty * 0.08);
+
+        double pricePerItem = def.getItemSellPrice(ss.getCurrentPrice());
+        double earned       = ps.getDailyExchangeEarnings(player.getUuid());
+        double remaining    = Math.max(0, DAILY_CAP - earned);
+        if (remaining <= 0) {
+            player.sendMessage(Text.literal("§7Daily exchange limit reached. Come back tomorrow."), true);
+            return false;
+        }
+
+        int effectiveQty = (int) Math.min(qty, Math.floor(remaining / pricePerItem));
+        if (effectiveQty <= 0) {
+            player.sendMessage(Text.literal("§7Daily exchange limit reached. Come back tomorrow."), true);
+            return false;
+        }
+
+        double grossGain = pricePerItem * effectiveQty;
+        boolean inEnd    = player.getWorld().getRegistryKey().equals(World.END);
+        double tax       = inEnd ? 0.0 : grossGain * TAX_RATE;
+        double netGain   = grossGain - tax;
+
+        removeItems(player, def, effectiveQty);
+        ss.applyEventPressure(-effectiveQty * 0.08);
+        ps.getPortfolio(player.getUuid()).addCoins(netGain);
+        ps.addDailyExchangeEarnings(player.getUuid(), grossGain);
+        String msg = inEnd
+                ? String.format("§aSold %d %s for §e%.1f¢ §d(tax-free zone)", effectiveQty, ticker, netGain)
+                : String.format("§aSold %d %s for §e%.1f¢ §7(5%% tax applied)", effectiveQty, ticker, netGain);
+        player.sendMessage(Text.literal(msg), true);
         ps.markDirty();
         return true;
     }

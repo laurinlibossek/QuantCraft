@@ -3,8 +3,9 @@
   "id": "quantcraft",
   "version": "${version}",
   "name": "QuantCraft",
-  "description": "A living stock market inside Minecraft.",
-  "authors": ["YourName"],
+  "description": "Stonks!.",
+  "authors": ["laulib"],
+  "icon": "assets/quantcraft/icon.png",
   "environment": "*",
   "entrypoints": {
     "main":    ["com.quantcraft.QuantCraftMod"],
@@ -15,7 +16,7 @@
   "depends": {
     "fabricloader": ">=0.15.0",
     "fabric-api": "*",
-    "minecraft": "~1.20.4",
+    "minecraft": ">=1.20.4",
     "java": ">=17",
     "modmenu": ">=9.0.0",
     "cloth-config": "*"

@@ -6,5 +6,5 @@
     "H": {"item": "minecraft:hopper"},
     "S": {"item": "minecraft:smooth_stone"}
   },
-  "result": {"id": "quantcraft:commodity_exchange", "count": 1}
+  "result": {"item": "quantcraft:commodity_exchange", "count": 1}
 }

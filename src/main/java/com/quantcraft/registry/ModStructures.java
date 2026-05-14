@@ -19,5 +19,6 @@ public class ModStructures {
         INVESTMENT_CENTER = Registry.register(Registries.STRUCTURE_TYPE,
                 new Identifier(QuantCraftMod.MOD_ID, "investment_center"),
                 (StructureType<InvestmentCenterGenerator>) () -> InvestmentCenterGenerator.CODEC);
+
     }
 }
