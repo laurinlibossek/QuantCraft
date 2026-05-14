@@ -1,5 +1,6 @@
 package com.quantcraft.screen;
 
+import com.quantcraft.QuantCraftMod;
 import com.quantcraft.market.*;
 import com.quantcraft.persistence.MarketPersistentState;
 import com.quantcraft.registry.ModScreenHandlerTypes;
@@ -23,10 +24,15 @@ public class TradingPostScreenHandler extends ScreenHandler {
             int totalShares,
             int sharesHeld) {}
 
+    public record ShortDisplayData(
+            String ticker, int shares, double openPrice,
+            double currentPrice, double pnl, double accruedFee, double marginReserve) {}
+
     public final List<StockDisplayData> stocks        = new ArrayList<>();
     public double                       playerCoinBalance;
     public final Map<String,Integer>    playerHoldings = new LinkedHashMap<>();
     public final List<String>           recentNews     = new ArrayList<>();
+    public final List<ShortDisplayData> openShorts     = new ArrayList<>();
     private int selectedIndex = 0;
 
     private final PropertyDelegate props = new PropertyDelegate() {
@@ -68,13 +74,33 @@ public class TradingPostScreenHandler extends ScreenHandler {
             for (int i = 0; i < hc; i++) playerHoldings.put(buf.readString(), buf.readInt());
             int nc = buf.readInt();
             for (int i = 0; i < nc; i++) recentNews.add(buf.readString());
-        } catch (Exception ignored) {}
+            int sc = buf.readInt();
+            for (int i = 0; i < sc; i++) {
+                String tk     = buf.readString();
+                int    shares = buf.readInt();
+                double open   = buf.readDouble();
+                double cur    = buf.readDouble();
+                double pnl    = buf.readDouble();
+                double fee    = buf.readDouble();
+                double margin = buf.readDouble();
+                openShorts.add(new ShortDisplayData(tk, shares, open, cur, pnl, fee, margin));
+            }
+        } catch (Exception e) {
+            QuantCraftMod.LOGGER.warn("[QuantCraft] TradingPostScreenHandler failed to read opening data: {}", e.getMessage());
+        }
+        if (stocks.isEmpty()) {
+            QuantCraftMod.LOGGER.warn("[QuantCraft] TradingPostScreenHandler: stocks list is empty after readBuf — data may not have arrived.");
+        }
     }
 
     @Override
     public boolean onButtonClick(PlayerEntity player, int id) {
         if (!(player instanceof ServerPlayerEntity sp)) return false;
         if (id < 100) { selectedIndex = id; props.set(0, id); return true; }
+        if (!MarketEngine.getInstance().isMarketOpen()) {
+            sp.sendMessage(Text.literal("§cThe market is closed. Trading resumes at dawn."), true);
+            return false;
+        }
         if (selectedIndex >= stocks.size()) return false;
         String ticker = stocks.get(selectedIndex).definition().ticker();
         var    ps     = MarketPersistentState.getOrCreate(sp.getServer().getOverworld());

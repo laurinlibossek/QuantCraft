@@ -8,5 +8,5 @@
     "S": {"item": "minecraft:stone"},
     "L": {"item": "minecraft:lectern"}
   },
-  "result": {"id": "quantcraft:trading_post", "count": 1}
+  "result": {"item": "quantcraft:trading_post", "count": 1}
 }

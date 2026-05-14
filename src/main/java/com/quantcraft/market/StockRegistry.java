@@ -4,9 +4,10 @@ import net.minecraft.util.Identifier;
 import java.util.*;
 
 public class StockRegistry {
-    private static final List<StockDefinition>      ALL        = new ArrayList<>();
-    private static final Map<String,StockDefinition> BY_TICKER  = new LinkedHashMap<>();
-    private static final Map<String,String>          REAL_WORLD = new LinkedHashMap<>();
+    private static final List<StockDefinition>      ALL             = new ArrayList<>();
+    private static final Map<String,StockDefinition> BY_TICKER      = new LinkedHashMap<>();
+    private static final Map<String,String>          REAL_WORLD     = new LinkedHashMap<>();
+    private static final Map<String,Double>          DIVIDEND_RATES = new LinkedHashMap<>();
 
     public static void initialize() {
         // ── AGRARIAN ────────────────────────────────────────────────────────
@@ -42,6 +43,22 @@ public class StockRegistry {
         add("GLASS","Glass",        "minecraft:glass",       MANUFACTURED,15,0.14,0.38,"OC",  30000, 5.0, 0.91);
         add("BRICK","Brick",        "minecraft:brick",       MANUFACTURED,10,0.16,0.36,"VMC", 35000, 3.5, 0.91);
         add("PAPER","Paper",        "minecraft:paper",       MANUFACTURED, 8,0.18,0.34,"IP",  40000, 2.5, 0.90);
+
+        // ── Dividend rates (paid per payout cycle) ───────────────────────────
+        // AGRARIAN
+        for (String tk : new String[]{"WHEAT","CRRT","POTAT","APPLE","MELON"}) DIVIDEND_RATES.put(tk, 0.018);
+        // LUMBER
+        for (String tk : new String[]{"OAKW","BIRC","SPRCE"})                   DIVIDEND_RATES.put(tk, 0.022);
+        // LIVESTOCK
+        for (String tk : new String[]{"LEAT","WOOL","FTHR"})                    DIVIDEND_RATES.put(tk, 0.016);
+        // MANUFACTURED
+        for (String tk : new String[]{"GLASS","BRICK","PAPER"})                 DIVIDEND_RATES.put(tk, 0.014);
+        // MINING — common
+        for (String tk : new String[]{"COAL","IRON","GOLD","LAPIS","RDST","QRTZ"}) DIVIDEND_RATES.put(tk, 0.010);
+        // MINING — rare
+        for (String tk : new String[]{"DIAM","EMER"})                           DIVIDEND_RATES.put(tk, 0.006);
+        // ARCANE
+        for (String tk : new String[]{"EPRL","BLAZ","GLOW","GHST","SKEL"})      DIVIDEND_RATES.put(tk, 0.004);
     }
 
     private static final MarketSector AGRARIAN     = MarketSector.AGRARIAN;
@@ -62,4 +79,5 @@ public class StockRegistry {
     public static StockDefinition            get(String ticker)          { return BY_TICKER.get(ticker); }
     public static String                     getRealWorldTicker(String t){ return REAL_WORLD.getOrDefault(t, ""); }
     public static Map<String,String>         getRealWorldTickers()       { return Collections.unmodifiableMap(REAL_WORLD); }
+    public static double                     getDividendRate(String t)   { return DIVIDEND_RATES.getOrDefault(t, 0.0); }
 }

@@ -2,6 +2,7 @@ package com.quantcraft.market;
 
 import com.quantcraft.QuantCraftMod;
 import com.quantcraft.config.QuantCraftConfig;
+import com.quantcraft.events.MarketEventListener;
 import com.quantcraft.network.ModPackets;
 import com.quantcraft.persistence.MarketPersistentState;
 import net.minecraft.server.MinecraftServer;
@@ -14,16 +15,22 @@ public class MarketEngine {
     public static MarketEngine getInstance() { return INSTANCE; }
     private MarketEngine() {}
 
-    private final Map<String,StockState>   states         = new LinkedHashMap<>();
-    private final Map<String,LiquidityBot> bots           = new LinkedHashMap<>();
-    private final Map<String,int[]>        sustainedBoosts= new HashMap<>();
-    private final List<String>             recentNews     = new ArrayList<>();
+    private final Map<String,StockState>   states        = new LinkedHashMap<>();
+    private final Map<String,LiquidityBot> bots          = new LinkedHashMap<>();
+    private final List<ActiveMarketEvent>  activeEvents  = new ArrayList<>();
+    private final List<String>             recentNews    = new ArrayList<>();
+    private final Map<String,Double>       closingPrices = new LinkedHashMap<>();
     private static final int MAX_NEWS = 5;
-    private boolean frozen = false;
+    private boolean frozen     = false;
+    private boolean marketOpen = true;
+    private long    marketTickCount = 0;
 
     // ── Initialisation ───────────────────────────────────────────────────────
     public void loadState(MarketPersistentState ps) {
-        states.clear(); bots.clear();
+        states.clear(); bots.clear(); activeEvents.clear(); closingPrices.clear();
+        activeEvents.addAll(ps.getActiveEvents());
+        closingPrices.putAll(ps.getClosingPrices());
+        marketTickCount = ps.getMarketTickCount();
         Random rand = new Random();
         for (StockDefinition def : StockRegistry.getAll()) {
             StockState saved = ps.getStockState(def.ticker());
@@ -42,42 +49,86 @@ public class MarketEngine {
             StockState ss = states.get(def.ticker());
             if (ss != null) bot.tick(ss, def);
         }
+        reconcileSharesHeld(ps);
         QuantCraftMod.LOGGER.info("[QuantCraft] Loaded {} stocks.", states.size());
+    }
+
+    private void reconcileSharesHeld(MarketPersistentState ps) {
+        Map<String, Integer> totals = new HashMap<>();
+        for (var e : ps.getAllPortfolios().entrySet())
+            e.getValue().getHoldings().forEach((tk, qty) -> totals.merge(tk, qty, Integer::sum));
+        for (var e : bots.entrySet()) {
+            String tk = e.getKey();
+            totals.merge(tk, e.getValue().getShareReserve(), Integer::sum);
+        }
+        for (var e : states.entrySet()) {
+            StockState ss = e.getValue();
+            int reconciled = totals.getOrDefault(e.getKey(), 0);
+            int delta = reconciled - ss.getSharesHeld();
+            if (delta != 0) {
+                ss.adjustSharesHeld(delta);
+                QuantCraftMod.LOGGER.info("[QuantCraft] Reconciled {} sharesHeld: {} -> {}", e.getKey(), ss.getSharesHeld() - delta, reconciled);
+            }
+        }
     }
 
     // ── Tick ─────────────────────────────────────────────────────────────────
     public void tick(MinecraftServer server, MarketPersistentState ps) {
         if (frozen) return;
+        marketTickCount++;
+        MarketEventListener.resetEventCounts();
+        ps.checkDailyReset();
         tickSimulated(server);
+        processShortPositions(server, ps);
+        payDividendsIfDue(server, ps);
         ps.saveStates(states);
         ModPackets.broadcastMarketUpdate(server, getSnapshot());
     }
 
+    /** Called by QuantCraftMod at dusk to snapshot prices before the market closes. */
+    public void snapshotClosingPrices(MarketPersistentState ps) {
+        closingPrices.clear();
+        for (var e : states.entrySet()) closingPrices.put(e.getKey(), e.getValue().getCurrentPrice());
+        ps.setClosingPrices(closingPrices);
+        ps.markDirty();
+    }
+
+    public Map<String,Double> getClosingPrices() { return Collections.unmodifiableMap(closingPrices); }
+
     private void tickSimulated(MinecraftServer server) {
         long    wt        = server.getOverworld().getTimeOfDay();
-        boolean isNight   = (wt % 24000L) > 13000L;
+        long    tod       = wt % 24000L;
+        boolean isNight   = tod > 13000L;
         boolean isFullMoon= (server.getOverworld().getMoonPhase() == 0);
         boolean isThunder = server.getOverworld().isThundering();
+        // Market open: dawn (tod 0) through dusk (tod 12999)
+        marketOpen = tod < 13000L;
+
+        // Apply active newspaper events only during market hours; pause countdown at night
+        if (marketOpen) {
+            for (ActiveMarketEvent event : activeEvents) {
+                if (event.getAffectedTicker() != null) {
+                    pressureTicker(event.getAffectedTicker(), event.getPressurePerTick());
+                } else if (event.getAffectedSector() != null) {
+                    pressureSector(event.getAffectedSector(), event.getPressurePerTick());
+                }
+                event.tick();
+            }
+            activeEvents.removeIf(ActiveMarketEvent::isExpired);
+        }
 
         for (StockDefinition def : StockRegistry.getAll()) {
             StockState state = states.get(def.ticker());
             if (state == null) continue;
 
             state.getCandleHistory().openNewCandle(state.getCurrentPrice());
-            processLimitOrders(def, state, server);
+            if (marketOpen) processLimitOrders(def, state, server);
 
             LiquidityBot bot = bots.get(def.ticker());
             if (bot != null) bot.tick(state, def);
 
             double eventPressure = state.consumeEventPressure();
             double sectorMod = computeSectorModifier(def.sector(), isNight, isFullMoon, isThunder, def.basePrice());
-
-            int[] sustained = sustainedBoosts.get(def.ticker());
-            if (sustained != null) {
-                eventPressure += 3.0;
-                sustained[0]--;
-                if (sustained[0] <= 0) sustainedBoosts.remove(def.ticker());
-            }
 
             float mult = QuantCraftConfig.getGlobalVolatilityMultiplier();
             if (eventPressure != 0 || sectorMod != 0)
@@ -104,6 +155,13 @@ public class MarketEngine {
                 if (order.getSide() == LimitOrder.Side.BUY) {
                     int avail = state.getAvailableShares(def.totalShares());
                     int fill  = Math.min(qty, avail);
+                    int unfilled = qty - fill;
+                    if (unfilled > 0) {
+                        portfolio.addCoins(order.getLimitPrice() * unfilled);
+                        notify(server, order.getPlayerUuid(),
+                                String.format("§eLimit BUY partial: %d/%d %s filled, §e%.1f¢§e refunded for unfilled portion",
+                                        fill, qty, def.ticker(), order.getLimitPrice() * unfilled));
+                    }
                     if (fill > 0) {
                         portfolio.addShares(def.ticker(), fill);
                         state.adjustSharesHeld(+fill);
@@ -113,17 +171,13 @@ public class MarketEngine {
                                 String.format("§aLimit BUY filled: %d %s @ §e%.1f¢", fill, def.ticker(), price));
                     }
                 } else {
-                    int owned = portfolio.getHolding(def.ticker());
-                    int fill  = Math.min(qty, owned);
-                    if (fill > 0) {
-                        portfolio.removeShares(def.ticker(), fill);
-                        portfolio.addCoins(price * fill);
-                        state.adjustSharesHeld(-fill);
-                        state.getCandleHistory().recordTrade(price, fill);
-                        fireEvent(WorldMarketEvent.PLAYER_SOLD_STOCK, def.ticker());
-                        notify(server, order.getPlayerUuid(),
-                                String.format("§aLimit SELL filled: %d %s @ §e%.1f¢", fill, def.ticker(), price));
-                    }
+                    int fill = qty;
+                    portfolio.addCoins(price * fill);
+                    state.adjustSharesHeld(-fill);
+                    state.getCandleHistory().recordTrade(price, fill);
+                    fireEvent(WorldMarketEvent.PLAYER_SOLD_STOCK, def.ticker());
+                    notify(server, order.getPlayerUuid(),
+                            String.format("§aLimit SELL filled: %d %s @ §e%.1f¢", fill, def.ticker(), price));
                 }
             }
         }
@@ -131,7 +185,8 @@ public class MarketEngine {
     }
 
     // ── Market order execution ────────────────────────────────────────────────
-    public boolean executeMarketBuy(String ticker, int qty, UUID playerUuid, MarketPersistentState ps) {
+    public synchronized boolean executeMarketBuy(String ticker, int qty, UUID playerUuid, MarketPersistentState ps) {
+        if (!marketOpen) return false;
         StockDefinition def = StockRegistry.get(ticker);
         StockState      ss  = getState(ticker);
         if (def == null || ss == null) return false;
@@ -143,12 +198,13 @@ public class MarketEngine {
         if (!p.buy(ticker, fill, price)) return false;
         ss.adjustSharesHeld(+fill);
         ss.getCandleHistory().recordTrade(price, fill);
-        fireEvent(WorldMarketEvent.PLAYER_BOUGHT_STOCK, ticker);
+        ss.applyEventPressure(+0.1 * fill);
         ps.markDirty();
         return true;
     }
 
-    public boolean executeMarketSell(String ticker, int qty, UUID playerUuid, MarketPersistentState ps) {
+    public synchronized boolean executeMarketSell(String ticker, int qty, UUID playerUuid, MarketPersistentState ps) {
+        if (!marketOpen) return false;
         StockState ss = getState(ticker);
         if (ss == null) return false;
         double price = ss.getCurrentPrice();
@@ -156,9 +212,104 @@ public class MarketEngine {
         if (!p.sell(ticker, qty, price)) return false;
         ss.adjustSharesHeld(-qty);
         ss.getCandleHistory().recordTrade(price, qty);
-        fireEvent(WorldMarketEvent.PLAYER_SOLD_STOCK, ticker);
+        ss.applyEventPressure(-0.08 * qty);
         ps.markDirty();
         return true;
+    }
+
+    // ── Short position processing ─────────────────────────────────────────────
+    private void processShortPositions(MinecraftServer server, MarketPersistentState ps) {
+        for (var entry : new HashMap<>(ps.getAllShortPositions()).entrySet()) {
+            UUID uuid = entry.getKey();
+            for (ShortPosition pos : new ArrayList<>(entry.getValue())) {
+                try {
+                    StockState ss = states.get(pos.getTicker());
+                    if (ss == null) continue;
+                    double price = ss.getCurrentPrice();
+                    pos.addFee(price * pos.getShares() * 0.002);
+                    if (marketOpen && pos.isMarginCalled(price)) {
+                        forceCloseShort(uuid, pos, price, server, ps);
+                    }
+                } catch (Exception ex) {
+                    QuantCraftMod.LOGGER.error("[QuantCraft] Short processing error for {}: {}", uuid, ex.getMessage());
+                }
+            }
+        }
+    }
+
+    private void forceCloseShort(UUID uuid, ShortPosition pos, double price,
+                                  MinecraftServer server, MarketPersistentState ps) {
+        double buyback = price * pos.getShares();
+        PlayerPortfolio port = ps.getPortfolio(uuid);
+        double deducted = Math.min(port.getCoinBalance(), buyback);
+        port.deductCoins(deducted);
+        double loss     = (price - pos.getOpenPrice()) * pos.getShares() + pos.getAccruedFee();
+        double returned = Math.max(0, pos.getMarginReserve() - loss);
+        port.addCoins(returned);
+        StockState ss = states.get(pos.getTicker());
+        if (ss != null) {
+            LiquidityBot bot = bots.get(pos.getTicker());
+            if (bot != null) bot.setShareReserve(bot.getShareReserve() + pos.getShares());
+            ss.adjustSharesHeld(-pos.getShares());
+        }
+        ps.removeShort(uuid, pos);
+        ps.markDirty();
+        String msg = String.format("§c§lMARGIN CALL: §fYour SHORT §e%s§f was force-closed. Loss: §c%.1f¢",
+                pos.getTicker(), loss);
+        notify(server, uuid, msg);
+    }
+
+    // ── Dividend payouts ──────────────────────────────────────────────────────
+    // 3 real days in milliseconds
+    private static final long DIVIDEND_INTERVAL_MS    = 259_200_000L;
+    // Minimum holding period in market ticks before dividends are paid
+    private static final long DIVIDEND_HOLDING_PERIOD = 60L;
+
+    private void payDividendsIfDue(MinecraftServer server, MarketPersistentState ps) {
+        long now = System.currentTimeMillis();
+        if (now - ps.getLastDividendPayoutMillis() < DIVIDEND_INTERVAL_MS) return;
+
+        boolean anyPaid = false;
+        for (var entry : ps.getAllPortfolios().entrySet()) {
+            UUID uuid = entry.getKey();
+            PlayerPortfolio port = entry.getValue();
+            if (port.getHoldings().isEmpty()) continue;
+            try {
+                StringBuilder sb = new StringBuilder();
+                double total = 0;
+                for (var holding : port.getHoldings().entrySet()) {
+                    String tk    = holding.getKey();
+                    int    qty   = holding.getValue();
+                    long   acq   = port.getAcquiredAtTick(tk);
+                    if (marketTickCount - acq < DIVIDEND_HOLDING_PERIOD) continue;
+                    double rate  = StockRegistry.getDividendRate(tk);
+                    if (rate == 0) continue;
+                    StockState ss = states.get(tk);
+                    if (ss == null) continue;
+                    double payout = qty * ss.getCurrentPrice() * rate;
+                    if (payout < 0.01) continue;
+                    port.addCoins(payout);
+                    total += payout;
+                    sb.append(String.format("§a§lDIVIDEND PAID: §f%.2f¢ §7(%s ×%d @ %.3f¢/share)\n",
+                            payout, tk, qty, ss.getCurrentPrice() * rate));
+                }
+                if (total > 0) {
+                    String lines = sb.toString().trim();
+                    for (String line : lines.split("\n"))
+                        notify(server, uuid, line);
+                    anyPaid = true;
+                }
+            } catch (Exception ex) {
+                QuantCraftMod.LOGGER.error("[QuantCraft] Dividend error for {}: {}", uuid, ex.getMessage());
+            }
+        }
+
+        ps.setLastDividendPayoutMillis(now);
+        ps.markDirty();
+        if (anyPaid) {
+            server.getPlayerManager().broadcast(
+                    net.minecraft.text.Text.literal("§6§lDividend payout complete. Check your balance."), false);
+        }
     }
 
     // ── Event system ─────────────────────────────────────────────────────────
@@ -203,19 +354,65 @@ public class MarketEngine {
         if (recentNews.size() > MAX_NEWS) recentNews.remove(recentNews.size() - 1);
     }
 
-    public void pushNewsPublic(String h) { pushNews(h); }
-
     private void notify(MinecraftServer server, UUID uuid, String msg) {
         ServerPlayerEntity p = server.getPlayerManager().getPlayer(uuid);
         if (p != null) p.sendMessage(Text.literal(msg), true);
     }
 
     // ── Admin helpers ─────────────────────────────────────────────────────────
-    public void setFrozen(boolean v)                            { frozen = v; }
-    public boolean isFrozen()                                   { return frozen; }
-    public void applySectorPressure(MarketSector s, double d)   { pressureSector(s, d); }
-    public void applyTickerPressure(String t, double d)         { pressureTicker(t, d); }
-    public void applyTickerSustainedBoom(String t, int ticks)   { sustainedBoosts.put(t, new int[]{ticks}); }
+    public void setFrozen(boolean v)                          { frozen = v; }
+    public boolean isFrozen()                                 { return frozen; }
+    public boolean isMarketOpen()                             { return marketOpen; }
+    public void applySectorPressure(MarketSector s, double d) { pressureSector(s, d); }
+    public void applyTickerPressure(String t, double d)       { pressureTicker(t, d); }
+
+    /**
+     * Adds an active newspaper event. If a conflicting event (same ticker or same sector)
+     * already exists, the new event is rejected and the player is notified.
+     * If the reading player holds more than 10% of the affected ticker's float,
+     * pressurePerTick is halved for this event only.
+     */
+    public void addActiveEvent(ActiveMarketEvent event, net.minecraft.server.network.ServerPlayerEntity player) {
+        boolean conflict = activeEvents.stream().anyMatch(e -> {
+            if (event.getAffectedTicker() != null && event.getAffectedTicker().equals(e.getAffectedTicker()))
+                return true;
+            if (event.getAffectedSector() != null && event.getAffectedSector() == e.getAffectedSector())
+                return true;
+            // Cross-type: new ticker event conflicts with active sector event covering that ticker's sector
+            if (event.getAffectedTicker() != null && e.getAffectedSector() != null) {
+                StockDefinition d = StockRegistry.get(event.getAffectedTicker());
+                if (d != null && d.sector() == e.getAffectedSector()) return true;
+            }
+            // Cross-type: new sector event conflicts with active ticker event belonging to that sector
+            if (event.getAffectedSector() != null && e.getAffectedTicker() != null) {
+                StockDefinition d = StockRegistry.get(e.getAffectedTicker());
+                if (d != null && d.sector() == event.getAffectedSector()) return true;
+            }
+            return false;
+        });
+        if (conflict) {
+            if (player != null)
+                player.sendMessage(Text.literal("§7A similar event is already active."), true);
+            return;
+        }
+        if (player != null && event.getAffectedTicker() != null) {
+            StockDefinition def = StockRegistry.get(event.getAffectedTicker());
+            var ps = com.quantcraft.persistence.MarketPersistentState.getOrCreate(
+                    player.getServer().getOverworld());
+            if (def != null) {
+                int held = ps.getPortfolio(player.getUuid()).getHolding(event.getAffectedTicker());
+                if (held > def.totalShares() * 0.10) {
+                    event.halfPressure();
+                    player.sendMessage(Text.literal(
+                            "§7Market regulators noted unusual positioning before the announcement."), true);
+                }
+            }
+        }
+        activeEvents.add(event);
+        pushNews(event.getHeadline());
+    }
+
+    public List<ActiveMarketEvent> getActiveEvents() { return Collections.unmodifiableList(activeEvents); }
 
     public void resetToBasePrice() {
         for (StockDefinition d : StockRegistry.getAll()) {
@@ -235,9 +432,19 @@ public class MarketEngine {
     }
 
     // ── Accessors ─────────────────────────────────────────────────────────────
-    public Map<String,StockState>   getSnapshot()   { return Collections.unmodifiableMap(states); }
-    public StockState               getState(String t){ return states.get(t); }
-    public LiquidityBot             getBot(String t) { return bots.get(t); }
-    public Map<String,LiquidityBot> getAllBots()     { return Collections.unmodifiableMap(bots); }
-    public List<String>             getRecentNews()  { return Collections.unmodifiableList(recentNews); }
+    public long                     getMarketTickCount() { return marketTickCount; }
+    public void                     setMarketTickCount(long v) { marketTickCount = v; }
+    public Map<String,StockState>   getSnapshot()    { return Collections.unmodifiableMap(states); }
+    public StockState               getState(String t) { return states.get(t); }
+    public LiquidityBot             getBot(String t)   { return bots.get(t); }
+    public Map<String,LiquidityBot> getAllBots()       { return Collections.unmodifiableMap(bots); }
+    public List<String>             getHistoricalNews(){ return Collections.unmodifiableList(recentNews); }
+
+    /** Returns active event status lines followed by the historical headline log. */
+    public List<String> getRecentNews() {
+        List<String> combined = new ArrayList<>();
+        for (ActiveMarketEvent e : activeEvents) combined.add(e.getStatusLine());
+        combined.addAll(recentNews);
+        return Collections.unmodifiableList(combined);
+    }
 }

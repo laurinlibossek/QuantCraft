@@ -10,7 +10,7 @@ import net.minecraft.util.math.BlockPos;
 import java.util.*;
 
 public class QuotronBlockEntity extends BlockEntity {
-    public static final int MAX_TRACKED = 5;
+    public static final int MAX_TRACKED = 10;
     private static final String NBT_KEY = "TrackedTickers";
 
     private final List<String> trackedTickers = new ArrayList<>();

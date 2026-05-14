@@ -5,5 +5,5 @@
     "G": {"item": "minecraft:gold_ingot"},
     "R": {"item": "minecraft:redstone"}
   },
-  "result": {"id": "quantcraft:quotron", "count": 1}
+  "result": {"item": "quantcraft:quotron", "count": 1}
 }

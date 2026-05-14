@@ -2,6 +2,7 @@ package com.quantcraft.structure;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.quantcraft.config.QuantCraftConfig;
 import com.quantcraft.registry.ModStructures;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.Heightmap;
@@ -18,6 +19,7 @@ public class InvestmentCenterGenerator extends Structure {
 
     @Override
     public Optional<StructurePosition> getStructurePosition(Context ctx) {
+        if (!QuantCraftConfig.isSpawnTradingHuts()) return Optional.empty();
         return getStructurePosition(ctx, Heightmap.Type.WORLD_SURFACE_WG,
                 collector -> collector.addPiece(new InvestmentCenterPiece(
                         ModStructures.INVESTMENT_CENTER_PIECE,

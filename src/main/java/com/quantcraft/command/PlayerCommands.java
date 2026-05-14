@@ -71,6 +71,15 @@ public class PlayerCommands {
                             DoubleArgumentType.getDouble(ctx, "amount"))))))
                 .then(literal("news").executes(ctx -> news(ctx.getSource())))
                 .then(literal("tick").executes(ctx -> tickInfo(ctx.getSource())))
+                .then(literal("short").then(argument("ticker", StringArgumentType.word())
+                    .then(argument("qty", IntegerArgumentType.integer(1))
+                        .executes(ctx -> openShort(ctx.getSource(),
+                            StringArgumentType.getString(ctx, "ticker"),
+                            IntegerArgumentType.getInteger(ctx, "qty"))))))
+                .then(literal("covershort").then(argument("ticker", StringArgumentType.word())
+                    .executes(ctx -> coverShort(ctx.getSource(),
+                        StringArgumentType.getString(ctx, "ticker")))))
+                .then(literal("shorts").executes(ctx -> listShorts(ctx.getSource())))
             )
         );
     }
@@ -140,6 +149,9 @@ public class PlayerCommands {
 
     private static int trade(ServerCommandSource src, String ticker, int qty, boolean isBuy) {
         if (!(src.getEntity() instanceof ServerPlayerEntity p)) return 0;
+        if (!MarketEngine.getInstance().isMarketOpen()) {
+            src.sendError(Text.literal("§cThe market is closed. Trading resumes at dawn.")); return 0;
+        }
         String t  = ticker.toUpperCase();
         var    ps = MarketPersistentState.getOrCreate(src.getServer().getOverworld());
         boolean ok = isBuy
@@ -154,6 +166,9 @@ public class PlayerCommands {
 
     private static int limitOrder(ServerCommandSource src, String ticker, int qty, double limitPrice, LimitOrder.Side side) {
         if (!(src.getEntity() instanceof ServerPlayerEntity p)) return 0;
+        if (!MarketEngine.getInstance().isMarketOpen()) {
+            src.sendError(Text.literal("§cThe market is closed. Trading resumes at dawn.")); return 0;
+        }
         String t = ticker.toUpperCase();
         if (StockRegistry.get(t) == null) { src.sendError(Text.literal("Unknown ticker: " + t)); return 0; }
         var ps   = MarketPersistentState.getOrCreate(src.getServer().getOverworld());
@@ -167,6 +182,7 @@ public class PlayerCommands {
             port.deductCoins(cost); ps.markDirty();
         } else {
             if (port.getHolding(t) < qty) { src.sendError(Text.literal("You don't own " + qty + " shares of " + t)); return 0; }
+            port.removeShares(t, qty); ps.markDirty();
         }
         LimitOrder order = new LimitOrder(p.getUuid(), t, side, qty, limitPrice, src.getServer().getTicks());
         MarketEngine.getInstance().placeLimitOrder(order);
@@ -207,13 +223,15 @@ public class PlayerCommands {
                 .findFirst();
         if (found.isEmpty()) { src.sendError(Text.literal("Order not found.")); return 0; }
         LimitOrder o = found.get();
+        var ps = MarketPersistentState.getOrCreate(src.getServer().getOverworld());
         if (o.getSide() == LimitOrder.Side.BUY) {
-            var ps = MarketPersistentState.getOrCreate(src.getServer().getOverworld());
             ps.getPortfolio(p.getUuid()).addCoins(o.getLimitPrice() * o.getRemainingQty());
-            ps.markDirty();
+        } else {
+            ps.getPortfolio(p.getUuid()).addShares(o.getTicker(), o.getRemainingQty());
         }
+        ps.markDirty();
         ss.getOrderBook().cancelOrder(o.getOrderId());
-        src.sendFeedback(() -> Text.literal("§aOrder cancelled. Coins refunded."), false);
+        src.sendFeedback(() -> Text.literal("§aOrder cancelled. Assets returned."), false);
         return 1;
     }
 
@@ -257,10 +275,21 @@ public class PlayerCommands {
     }
 
     private static int news(ServerCommandSource src) {
-        var h = MarketEngine.getInstance().getRecentNews();
-        if (h.isEmpty()) { src.sendFeedback(() -> Text.literal("§7No news yet."), false); return 1; }
-        src.sendFeedback(() -> Text.literal("§6=== Market News ==="), false);
-        h.forEach(n -> src.sendFeedback(() -> Text.literal("§7• §f" + n), false));
+        MarketEngine engine  = MarketEngine.getInstance();
+        var          active  = engine.getActiveEvents();
+        var          history = engine.getHistoricalNews();
+        if (active.isEmpty() && history.isEmpty()) {
+            src.sendFeedback(() -> Text.literal("§7No news yet."), false);
+            return 1;
+        }
+        if (!active.isEmpty()) {
+            src.sendFeedback(() -> Text.literal("§6ACTIVE CONDITIONS:"), false);
+            active.forEach(e -> src.sendFeedback(() -> Text.literal("§c⚡ §f" + e.getStatusLine()), false));
+        }
+        if (!history.isEmpty()) {
+            src.sendFeedback(() -> Text.literal("§7RECENT HISTORY:"), false);
+            history.forEach(n -> src.sendFeedback(() -> Text.literal("§7• §f" + n), false));
+        }
         return 1;
     }
 
@@ -270,6 +299,105 @@ public class PlayerCommands {
         src.sendFeedback(() -> Text.literal(String.format(
                 "§eNext market tick in §f%d §eticks (§f%d§e elapsed / §f%d§e interval)",
                 interval - cur, cur, interval)), false);
+        return 1;
+    }
+
+    private static int openShort(ServerCommandSource src, String ticker, int qty) {
+        if (!(src.getEntity() instanceof ServerPlayerEntity p)) return 0;
+        if (!MarketEngine.getInstance().isMarketOpen()) {
+            src.sendError(Text.literal("§cThe market is closed. Trading resumes at dawn.")); return 0;
+        }
+        String t = ticker.toUpperCase();
+        StockDefinition def = StockRegistry.get(t);
+        StockState      ss  = MarketEngine.getInstance().getState(t);
+        if (def == null || ss == null) { src.sendError(Text.literal("Unknown ticker: " + t)); return 0; }
+        LiquidityBot bot = MarketEngine.getInstance().getBot(t);
+        if (bot == null || bot.getShareReserve() < qty) {
+            src.sendError(Text.literal("§cNot enough shares available to borrow.")); return 0;
+        }
+        var ps = MarketPersistentState.getOrCreate(src.getServer().getOverworld());
+        // Check player doesn't already have a short on this ticker
+        boolean alreadyShort = ps.getShorts(p.getUuid()).stream()
+                .anyMatch(sp -> sp.getTicker().equals(t));
+        if (alreadyShort) { src.sendError(Text.literal("§cYou already have an open short on " + t + ".")); return 0; }
+        double price  = ss.getCurrentPrice();
+        double margin = price * qty * 0.5;
+        var port = ps.getPortfolio(p.getUuid());
+        if (port.getCoinBalance() < margin) {
+            src.sendError(Text.literal(String.format("§cNeed §e%.1f¢§c margin, have §e%.1f¢", margin, port.getCoinBalance())));
+            return 0;
+        }
+        port.deductCoins(margin);
+        port.addCoins(price * qty);          // proceeds from the borrowed-share sale
+        bot.setShareReserve(bot.getShareReserve() - qty);
+        ss.adjustSharesHeld(+qty);           // shares enter the float (sold to market)
+        ShortPosition sp = new ShortPosition(p.getUuid(), t, qty, price, margin, src.getServer().getTicks());
+        ps.addShort(p.getUuid(), sp);
+        ps.markDirty();
+        src.sendFeedback(() -> Text.literal(String.format(
+                "§aShort opened: §e%d %s §aat §e%.1f¢§a. §7Margin locked: §e%.1f¢§7. Borrow fee: 0.2%%/tick.",
+                qty, t, price, margin)), false);
+        return 1;
+    }
+
+    private static int coverShort(ServerCommandSource src, String ticker) {
+        if (!(src.getEntity() instanceof ServerPlayerEntity p)) return 0;
+        if (!MarketEngine.getInstance().isMarketOpen()) {
+            src.sendError(Text.literal("§cThe market is closed. Trading resumes at dawn.")); return 0;
+        }
+        String t = ticker.toUpperCase();
+        var ps = MarketPersistentState.getOrCreate(src.getServer().getOverworld());
+        ShortPosition sp = ps.getShorts(p.getUuid()).stream()
+                .filter(s -> s.getTicker().equals(t)).findFirst().orElse(null);
+        if (sp == null) { src.sendError(Text.literal("No open short for " + t + ".")); return 0; }
+        StockState ss = MarketEngine.getInstance().getState(t);
+        if (ss == null) { src.sendError(Text.literal("Unknown ticker: " + t)); return 0; }
+        double price = ss.getCurrentPrice();
+        // Check float has room (bot buys back)
+        StockDefinition def = StockRegistry.get(t);
+        LiquidityBot bot = MarketEngine.getInstance().getBot(t);
+        double pnl     = sp.getCurrentPnL(price);
+        double buyback = price * sp.getShares();
+        var port = ps.getPortfolio(p.getUuid());
+        if (port.getCoinBalance() < buyback) {
+            src.sendError(Text.literal(String.format(
+                    "§cInsufficient funds to cover. You need §e%.1f¢§c but have §e%.1f¢§c. §7Sell assets or wait for a margin call.",
+                    buyback, port.getCoinBalance())));
+            return 0;
+        }
+        port.deductCoins(buyback);
+        double fee            = sp.getAccruedFee();
+        double marginReturned = Math.max(0, sp.getMarginReserve() - fee);
+        port.addCoins(marginReturned);
+        if (bot != null) bot.setShareReserve(bot.getShareReserve() + sp.getShares());
+        ss.adjustSharesHeld(-sp.getShares());
+        ps.removeShort(p.getUuid(), sp);
+        ps.markDirty();
+        final double displayPnl = pnl;
+        final double displayFee = fee;
+        final double displayMargin = marginReturned;
+        src.sendFeedback(() -> Text.literal(String.format(
+                "§aShort closed: §e%s§a. PnL: %s%.1f¢§a. Margin returned: §e%.1f¢ §7Borrow fees paid: §c%.2f¢",
+                t, displayPnl >= 0 ? "§a+" : "§c", displayPnl, displayMargin, displayFee)), false);
+        return 1;
+    }
+
+    private static int listShorts(ServerCommandSource src) {
+        if (!(src.getEntity() instanceof ServerPlayerEntity p)) return 0;
+        var ps   = MarketPersistentState.getOrCreate(src.getServer().getOverworld());
+        var list = ps.getShorts(p.getUuid());
+        src.sendFeedback(() -> Text.literal("§6=== Open Short Positions ==="), false);
+        if (list.isEmpty()) { src.sendFeedback(() -> Text.literal("§7None."), false); return 1; }
+        for (ShortPosition sp : list) {
+            StockState ss    = MarketEngine.getInstance().getState(sp.getTicker());
+            double     cur   = ss != null ? ss.getCurrentPrice() : 0;
+            double     pnl   = sp.getCurrentPnL(cur);
+            double     room  = sp.getMarginReserve() - Math.max(0, (cur - sp.getOpenPrice()) * sp.getShares());
+            src.sendFeedback(() -> Text.literal(String.format(
+                    "  §e%-5s §7×%d open:§f%.1f§7 cur:§f%.1f §7PnL:%s%.1f¢ §7fee:§c%.2f¢ §7margin left:§e%.1f¢",
+                    sp.getTicker(), sp.getShares(), sp.getOpenPrice(), cur,
+                    pnl >= 0 ? "§a+" : "§c", pnl, sp.getAccruedFee(), room)), false);
+        }
         return 1;
     }
 

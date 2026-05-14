@@ -43,6 +43,10 @@ public class CommodityExchangeScreenHandler extends ScreenHandler {
     public boolean onButtonClick(PlayerEntity player, int id) {
         if (!(player instanceof ServerPlayerEntity sp)) return false;
         if (id < 100) { selectedIndex = id; return true; }
+        if (!MarketEngine.getInstance().isMarketOpen()) {
+            sp.sendMessage(Text.literal("§cThe market is closed. Trading resumes at dawn."), true);
+            return false;
+        }
         if (selectedIndex >= rows.size()) return false;
         String ticker = rows.get(selectedIndex).def().ticker();
         var    ps     = MarketPersistentState.getOrCreate(sp.getServer().getOverworld());
@@ -50,10 +54,15 @@ public class CommodityExchangeScreenHandler extends ScreenHandler {
         boolean isBuy = (id % 2 == 0);
         CommodityMarket cm = CommodityMarket.getInstance();
         boolean ok = isBuy ? cm.buyItem(sp, ticker, qty, ps) : cm.sellItem(sp, ticker, qty, ps);
-        double[] prices = cm.getPrices(ticker);
-        sp.sendMessage(Text.literal(ok
-                ? String.format("§a%s %d §f%s§a @ §e%.1f¢", isBuy ? "Bought" : "Sold", qty, ticker, isBuy ? prices[0] : prices[1])
-                : (isBuy ? "§cInsufficient funds or no inventory space." : "§cNot enough items.")), true);
+        if (isBuy) {
+            double[] prices = cm.getPrices(ticker);
+            sp.sendMessage(Text.literal(ok
+                    ? String.format("§aBought %d §f%s§a @ §e%.1f¢", qty, ticker, prices[0])
+                    : "§cInsufficient funds or no inventory space."), true);
+        } else if (!ok) {
+            sp.sendMessage(Text.literal("§cNot enough items."), true);
+        }
+        // sell success message is sent by CommodityMarket.sellItem (includes tax info)
         return ok;
     }
 

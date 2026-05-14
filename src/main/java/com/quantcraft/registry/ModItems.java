@@ -2,15 +2,36 @@ package com.quantcraft.registry;
 
 import com.quantcraft.QuantCraftMod;
 import com.quantcraft.item.*;
+import net.minecraft.client.item.TooltipContext;
 import net.minecraft.item.*;
 import net.minecraft.registry.*;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
+import net.minecraft.world.World;
+import java.util.List;
 
 public class ModItems {
     public static final Item DOLLAR_BILL       = new DollarBillItem(new Item.Settings().maxCount(64));
-    public static final Item TRADING_POST      = new BlockItem(ModBlocks.TRADING_POST,       new Item.Settings());
-    public static final Item COMMODITY_EXCHANGE= new BlockItem(ModBlocks.COMMODITY_EXCHANGE, new Item.Settings());
-    public static final Item QUOTRON           = new BlockItem(ModBlocks.QUOTRON,            new Item.Settings());
+    public static final Item TRADING_POST      = new BlockItem(ModBlocks.TRADING_POST, new Item.Settings()) {
+        @Override public void appendTooltip(ItemStack s, World w, List<Text> t, TooltipContext c) {
+            t.add(Text.literal("The QuantCraft stock exchange. Buy and sell shares,").formatted(Formatting.GRAY));
+            t.add(Text.literal("place limit orders, and track your portfolio.").formatted(Formatting.GRAY));
+            t.add(Text.literal("Sneak + right-click with bills to deposit.").formatted(Formatting.DARK_GRAY));
+        }
+    };
+    public static final Item COMMODITY_EXCHANGE= new BlockItem(ModBlocks.COMMODITY_EXCHANGE, new Item.Settings()) {
+        @Override public void appendTooltip(ItemStack s, World w, List<Text> t, TooltipContext c) {
+            t.add(Text.literal("Trade physical Minecraft items for coins.").formatted(Formatting.GRAY));
+            t.add(Text.literal("Prices follow the stock market.").formatted(Formatting.GRAY));
+        }
+    };
+    public static final Item QUOTRON           = new BlockItem(ModBlocks.QUOTRON, new Item.Settings()) {
+        @Override public void appendTooltip(ItemStack s, World w, List<Text> t, TooltipContext c) {
+            t.add(Text.literal("Wall-mounted market terminal.").formatted(Formatting.GRAY));
+            t.add(Text.literal("Track up to 10 stocks and monitor live prices.").formatted(Formatting.GRAY));
+        }
+    };
 
     public static final Item NP_DIAMOND_DISCOVERY = new NewspaperItem(NewspaperItem.NewspaperType.DIAMOND_DISCOVERY, new Item.Settings());
     public static final Item NP_DRAGON_SLAIN      = new NewspaperItem(NewspaperItem.NewspaperType.DRAGON_SLAIN,      new Item.Settings());
