@@ -1,5 +1,6 @@
 package com.quantcraft.screen;
 
+import com.quantcraft.network.ModPacketsClient;
 import com.quantcraft.screen.CommodityExchangeScreenHandler.CommodityRow;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
@@ -38,7 +39,7 @@ public class CommodityExchangeScreen extends HandledScreen<CommodityExchangeScre
         addDrawableChild(ButtonWidget.builder(Text.literal("Sell 64"), btn -> click(105)).dimensions(rx + 65, y + 100, 55, 16).build());
     }
 
-    private void click(int id) { if (client != null) client.interactionManager.clickButton(handler.syncId, id); }
+    private void click(int id) { ModPacketsClient.sendButtonClick(handler.syncId, id); }
 
     @Override protected void drawBackground(DrawContext ctx, float d, int mx, int my) {
         int x = (width - backgroundWidth) / 2, y = (height - backgroundHeight) / 2;

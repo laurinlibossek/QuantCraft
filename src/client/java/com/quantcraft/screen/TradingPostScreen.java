@@ -1,6 +1,7 @@
 package com.quantcraft.screen;
 
 import com.quantcraft.market.*;
+import com.quantcraft.network.ModPacketsClient;
 import com.quantcraft.screen.TradingPostScreenHandler.StockDisplayData;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
@@ -43,7 +44,7 @@ public class TradingPostScreen extends HandledScreen<TradingPostScreenHandler> {
         addDrawableChild(ButtonWidget.builder(Text.literal("Orders"),    btn -> activeTab = 3).dimensions(x + 195, y + backgroundHeight - 25, 55, 18).build());
     }
 
-    private void click(int id) { if (client != null) client.interactionManager.clickButton(handler.syncId, id); }
+    private void click(int id) { ModPacketsClient.sendButtonClick(handler.syncId, id); }
 
     @Override protected void drawBackground(DrawContext ctx, float d, int mx, int my) {
         int x = (width - backgroundWidth) / 2, y = (height - backgroundHeight) / 2;

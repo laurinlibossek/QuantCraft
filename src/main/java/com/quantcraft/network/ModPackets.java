@@ -22,6 +22,7 @@ public class ModPackets {
     // C2S
     public static final Identifier C2S_UPDATE_QUOTRON = id("update_quotron");
     public static final Identifier C2S_NEWSPAPER_READ = id("newspaper_read");
+    public static final Identifier C2S_BUTTON_CLICK   = id("button_click");
 
     private static Identifier id(String p) { return new Identifier(QuantCraftMod.MOD_ID, p); }
 
@@ -52,6 +53,16 @@ public class ModPackets {
                 if (type == null || source == null) return;
                 NewspaperEffects.apply(type, server, player);
                 source.decrement(1);
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(C2S_BUTTON_CLICK, (server, player, handler, buf, resp) -> {
+            int syncId = buf.readInt();
+            int buttonId = buf.readInt();
+            server.execute(() -> {
+                if (player.currentScreenHandler.syncId == syncId) {
+                    player.currentScreenHandler.onButtonClick(player, buttonId);
+                }
             });
         });
     }

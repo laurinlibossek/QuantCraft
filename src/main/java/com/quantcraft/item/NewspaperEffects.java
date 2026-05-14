@@ -14,10 +14,7 @@ public class NewspaperEffects {
             case DIAMOND_DISCOVERY -> e.addActiveEvent(new ActiveMarketEvent(
                     "Diamond Discovery — DIAM supply flooded",
                     "DIAM", null, -3.5, 15, server.getTicks()), player);
-            case DRAGON_SLAIN      -> e.addActiveEvent(new ActiveMarketEvent(
-                    "Dragon Slain — Arcane sector in freefall",
-                    null, MarketSector.ARCANE, -4.0, 15, server.getTicks()), player);
-            case TRADE_WAR         -> {
+            case TRADE_WAR -> {
                 e.addActiveEvent(new ActiveMarketEvent(
                         "Trade War — Manufacturing down, Agrarian surging",
                         null, MarketSector.MANUFACTURED, -2.0, 20, server.getTicks()), player);
