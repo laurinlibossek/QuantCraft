@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "quantcraft",
+  "version": "${version}",
+  "name": "QuantCraft",
+  "description": "A living stock market inside Minecraft.",
+  "authors": ["YourName"],
+  "environment": "*",
+  "entrypoints": {
+    "main":    ["com.quantcraft.QuantCraftMod"],
+    "client":  ["com.quantcraft.QuantCraftModClient"],
+    "modmenu": ["com.quantcraft.QuantCraftModMenuIntegration"]
+  },
+  "mixins": ["quantcraft.mixins.json", "quantcraft.client.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "fabric-api": "*",
+    "minecraft": "~1.20.4",
+    "java": ">=17",
+    "modmenu": ">=9.0.0",
+    "cloth-config": "*"
+  }
+}

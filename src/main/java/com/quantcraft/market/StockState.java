@@ -1,0 +1,56 @@
+package com.quantcraft.market;
+
+import java.util.*;
+
+public class StockState {
+    private static final int HISTORY_SIZE = 30;
+
+    private final String ticker;
+    private double currentPrice, previousPrice;
+    private final ArrayDeque<Double> priceHistory = new ArrayDeque<>(HISTORY_SIZE);
+    private double eventPressure = 0.0;
+    private int sharesHeld = 0;
+    private final OrderBook orderBook;
+    private final CandleHistory candleHistory;
+
+    public StockState(String ticker, double initialPrice) {
+        this.ticker        = ticker;
+        this.currentPrice  = initialPrice;
+        this.previousPrice = initialPrice;
+        this.orderBook     = new OrderBook(ticker);
+        this.candleHistory = new CandleHistory(ticker);
+        for (int i = 0; i < HISTORY_SIZE; i++) priceHistory.addLast(initialPrice);
+    }
+
+    public void updatePrice(double newPrice) {
+        previousPrice = currentPrice;
+        currentPrice  = Math.max(1.0, newPrice);
+        candleHistory.record(currentPrice);
+        if (priceHistory.size() >= HISTORY_SIZE) priceHistory.pollFirst();
+        priceHistory.addLast(currentPrice);
+    }
+
+    public void applyEventPressure(double delta)  { eventPressure += delta; }
+    public double consumeEventPressure()           { double p = eventPressure; eventPressure = 0; return p; }
+    public void adjustSharesHeld(int delta)        { sharesHeld = Math.max(0, sharesHeld + delta); }
+    public int getAvailableShares(int total)       { return Math.max(0, total - sharesHeld); }
+
+    public void restoreHistory(List<Double> history, double previous, int held) {
+        priceHistory.clear();
+        for (double d : history) priceHistory.addLast(d);
+        this.previousPrice = previous;
+        this.sharesHeld    = held;
+    }
+
+    public String         getTicker()             { return ticker; }
+    public double         getCurrentPrice()       { return currentPrice; }
+    public double         getPreviousPrice()      { return previousPrice; }
+    public List<Double>   getPriceHistory()       { return new ArrayList<>(priceHistory); }
+    public double         getDailyChange()        { return currentPrice - previousPrice; }
+    public double         getDailyChangePercent() {
+        return previousPrice == 0 ? 0.0 : (getDailyChange() / previousPrice) * 100.0;
+    }
+    public int            getSharesHeld()         { return sharesHeld; }
+    public OrderBook      getOrderBook()          { return orderBook; }
+    public CandleHistory  getCandleHistory()      { return candleHistory; }
+}

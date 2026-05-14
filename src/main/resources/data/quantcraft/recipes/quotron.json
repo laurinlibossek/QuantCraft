@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": ["GGG","GRG","GGG"],
+  "key": {
+    "G": {"item": "minecraft:gold_ingot"},
+    "R": {"item": "minecraft:redstone"}
+  },
+  "result": {"id": "quantcraft:quotron", "count": 1}
+}

@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/orientable",
+  "textures": {
+    "front": "quantcraft:block/quotron_front",
+    "side": "quantcraft:block/quotron_side",
+    "top": "quantcraft:block/quotron_top"
+  }
+}
