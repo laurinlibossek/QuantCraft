@@ -6,6 +6,7 @@ import com.quantcraft.persistence.MarketPersistentState;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.block.*;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.entity.EntityPose;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -29,8 +30,9 @@ public class TradingPostBlock extends BlockWithEntity {
     @Override public ActionResult onUse(BlockState state, World world, BlockPos pos,
                                         PlayerEntity player, Hand hand, BlockHitResult hit) {
         if (world.isClient) return ActionResult.SUCCESS;
+        if (hand != Hand.MAIN_HAND) return ActionResult.PASS;
 
-        if (player.isSneaking()) {
+        if (player.isSneaking() || player.getPose() == EntityPose.CROUCHING) {
             if (!(player instanceof ServerPlayerEntity sp)) return ActionResult.SUCCESS;
             int totalCoins = 0;
             for (int i = 0; i < player.getInventory().size(); i++) {

@@ -12,7 +12,7 @@ import java.util.List;
 
 public class NewspaperItem extends Item {
     public enum NewspaperType {
-        DIAMOND_DISCOVERY, DRAGON_SLAIN, TRADE_WAR, MINING_BOOM, LUMBER_SHORTAGE,
+        DIAMOND_DISCOVERY, TRADE_WAR, MINING_BOOM, LUMBER_SHORTAGE,
         GOLD_RUSH, HARVEST_FESTIVAL, ARCANE_ANOMALY, LIVESTOCK_PLAGUE, EMERALD_CARTEL
     }
 
