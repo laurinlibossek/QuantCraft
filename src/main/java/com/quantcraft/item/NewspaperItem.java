@@ -34,7 +34,7 @@ public class NewspaperItem extends Item {
 
     @Override
     public void appendTooltip(ItemStack stack, World world, List<Text> tooltip, TooltipContext ctx) {
+        tooltip.add(Text.literal("§cBreaking News!"));
         tooltip.add(Text.literal("Right-click to read").formatted(Formatting.GRAY));
-        tooltip.add(Text.literal("Triggers a market event when read").formatted(Formatting.DARK_GRAY));
     }
 }

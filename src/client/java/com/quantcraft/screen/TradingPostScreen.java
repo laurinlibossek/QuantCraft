@@ -89,7 +89,6 @@ public class TradingPostScreen extends HandledScreen<TradingPostScreenHandler> {
             drawCandleChart(ctx, s.candles(), s.history(), 172, ry, 78, ROW_H - 2);
             int held = handler.playerHoldings.getOrDefault(s.definition().ticker(), 0);
             if (held > 0) ctx.drawText(textRenderer, String.valueOf(held), 257, ry, GOLD, false);
-            // TODO issue #3 fix: use totalShares() - sharesHeld() inline instead of nonexistent method
             int avail      = Math.max(0, s.totalShares() - s.sharesHeld());
             int availColor = avail < s.totalShares() * 0.1 ? RED : GRAY;
             String av = avail > 9999 ? (avail / 1000) + "k" : String.valueOf(avail);
@@ -135,13 +134,30 @@ public class TradingPostScreen extends HandledScreen<TradingPostScreenHandler> {
         int ry = 25;
         ctx.drawText(textRenderer, "YOUR PORTFOLIO", 6, ry, GOLD, false); ry += 14;
         ctx.drawText(textRenderer, String.format("Cash: %.1f¢", handler.playerCoinBalance), 6, ry, 0xFFddddee, false); ry += 14;
-        if (handler.playerHoldings.isEmpty()) { ctx.drawText(textRenderer, "No holdings.", 6, ry, GRAY, false); return; }
         double total = 0;
-        for (var e : handler.playerHoldings.entrySet()) {
-            var sd = handler.stocks.stream().filter(s -> s.definition().ticker().equals(e.getKey())).findFirst().orElse(null);
-            if (sd == null) continue;
-            double val = sd.price() * e.getValue(); total += val;
-            ctx.drawText(textRenderer, String.format("%s ×%d = %.1f¢", e.getKey(), e.getValue(), val), 6, ry, 0xFFddddee, false); ry += 12;
+        if (handler.playerHoldings.isEmpty()) {
+            ctx.drawText(textRenderer, "No holdings.", 6, ry, GRAY, false); ry += 12;
+        } else {
+            for (var e : handler.playerHoldings.entrySet()) {
+                var sd = handler.stocks.stream().filter(s -> s.definition().ticker().equals(e.getKey())).findFirst().orElse(null);
+                if (sd == null) continue;
+                double val = sd.price() * e.getValue(); total += val;
+                ctx.drawText(textRenderer, String.format("%s ×%d = %.1f¢", e.getKey(), e.getValue(), val), 6, ry, 0xFFddddee, false); ry += 12;
+                if (ry > backgroundHeight - 80) { ctx.drawText(textRenderer, "...", 6, ry, GRAY, false); ry += 12; break; }
+            }
+        }
+        if (!handler.openShorts.isEmpty()) {
+            ry += 4;
+            ctx.fill(0, ry, backgroundWidth, ry + 1, 0xFF334455); ry += 4;
+            ctx.drawText(textRenderer, "SHORT POSITIONS", 6, ry, RED, false); ry += 12;
+            for (var sp : handler.openShorts) {
+                if (ry > backgroundHeight - 68) break;
+                int col = sp.pnl() >= 0 ? GREEN : RED;
+                ctx.drawText(textRenderer, String.format("%-5s ×%d open:%.1f cur:%.1f  PnL:%s%.1f¢  fee:%.2f¢",
+                        sp.ticker(), sp.shares(), sp.openPrice(), sp.currentPrice(),
+                        sp.pnl() >= 0 ? "+" : "", sp.pnl(), sp.accruedFee()),
+                        6, ry, col, false); ry += 11;
+            }
         }
         ry += 4;
         ctx.drawText(textRenderer, String.format("Total: %.1f¢", handler.playerCoinBalance + total), 6, ry, GOLD, false);
