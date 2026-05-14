@@ -34,7 +34,6 @@ public class ModItems {
     };
 
     public static final Item NP_DIAMOND_DISCOVERY = new NewspaperItem(NewspaperItem.NewspaperType.DIAMOND_DISCOVERY, new Item.Settings());
-    public static final Item NP_DRAGON_SLAIN      = new NewspaperItem(NewspaperItem.NewspaperType.DRAGON_SLAIN,      new Item.Settings());
     public static final Item NP_TRADE_WAR         = new NewspaperItem(NewspaperItem.NewspaperType.TRADE_WAR,         new Item.Settings());
     public static final Item NP_MINING_BOOM       = new NewspaperItem(NewspaperItem.NewspaperType.MINING_BOOM,       new Item.Settings());
     public static final Item NP_LUMBER_SHORTAGE   = new NewspaperItem(NewspaperItem.NewspaperType.LUMBER_SHORTAGE,   new Item.Settings());
@@ -50,7 +49,6 @@ public class ModItems {
         reg("commodity_exchange",           COMMODITY_EXCHANGE);
         reg("quotron",                      QUOTRON);
         reg("newspaper_diamond_discovery",  NP_DIAMOND_DISCOVERY);
-        reg("newspaper_dragon_slain",       NP_DRAGON_SLAIN);
         reg("newspaper_trade_war",          NP_TRADE_WAR);
         reg("newspaper_mining_boom",        NP_MINING_BOOM);
         reg("newspaper_lumber_shortage",    NP_LUMBER_SHORTAGE);

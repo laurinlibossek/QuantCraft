@@ -18,7 +18,6 @@ public class ModItemGroups {
                 entries.add(ModItems.COMMODITY_EXCHANGE);
                 entries.add(ModItems.QUOTRON);
                 entries.add(ModItems.NP_DIAMOND_DISCOVERY);
-                entries.add(ModItems.NP_DRAGON_SLAIN);
                 entries.add(ModItems.NP_TRADE_WAR);
                 entries.add(ModItems.NP_MINING_BOOM);
                 entries.add(ModItems.NP_LUMBER_SHORTAGE);

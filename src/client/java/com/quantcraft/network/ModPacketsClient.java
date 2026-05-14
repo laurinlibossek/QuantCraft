@@ -65,4 +65,11 @@ public class ModPacketsClient {
         buf.writeInt(type.ordinal());
         ClientPlayNetworking.send(ModPackets.C2S_NEWSPAPER_READ, buf);
     }
+
+    public static void sendButtonClick(int syncId, int buttonId) {
+        PacketByteBuf buf = net.fabricmc.fabric.api.networking.v1.PacketByteBufs.create();
+        buf.writeInt(syncId);
+        buf.writeInt(buttonId);
+        ClientPlayNetworking.send(ModPackets.C2S_BUTTON_CLICK, buf);
+    }
 }
