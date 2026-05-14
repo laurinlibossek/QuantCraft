@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "quantcraft:block/quotron"
+    },
+    "facing=south": {
+      "model": "quantcraft:block/quotron",
+      "y": 180
+    },
+    "facing=east": {
+      "model": "quantcraft:block/quotron",
+      "y": 90
+    },
+    "facing=west": {
+      "model": "quantcraft:block/quotron",
+      "y": 270
+    }
+  }
+}

@@ -1,0 +1,57 @@
+package com.quantcraft.config;
+
+import me.shedaniel.clothconfig2.api.*;
+import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.text.Text;
+
+public class QuantCraftConfigScreen {
+    public static Screen create(Screen parent) {
+        ConfigBuilder builder = ConfigBuilder.create()
+                .setParentScreen(parent)
+                .setTitle(Text.literal("QuantCraft Settings"))
+                .setSavingRunnable(QuantCraftConfig::save);
+
+        ConfigEntryBuilder e = builder.entryBuilder();
+
+        var general = builder.getOrCreateCategory(Text.literal("General"));
+
+        general.addEntry(e.startIntField(Text.literal("Starting Balance"),
+                QuantCraftConfig.getStartingBalance()).setDefaultValue(500).setMin(0).setMax(1000000)
+                .setTooltip(Text.literal("Coins given to new players"))
+                .setSaveConsumer(QuantCraftConfig::setStartingBalance).build());
+
+        general.addEntry(e.startIntField(Text.literal("Market Tick Interval (ticks)"),
+                QuantCraftConfig.getMarketTickInterval()).setDefaultValue(1200).setMin(20).setMax(72000)
+                .setTooltip(Text.literal("How often prices update. 1200 = 1 real minute"))
+                .setSaveConsumer(QuantCraftConfig::setMarketTickInterval).build());
+
+        var market = builder.getOrCreateCategory(Text.literal("Market Behaviour"));
+
+        market.addEntry(e.startFloatField(Text.literal("Global Volatility Multiplier"),
+                QuantCraftConfig.getGlobalVolatilityMultiplier()).setDefaultValue(1.0f).setMin(0.1f).setMax(5.0f)
+                .setTooltip(Text.literal("2.0 = twice as wild. Applied to all stocks."))
+                .setSaveConsumer(QuantCraftConfig::setGlobalVolatilityMultiplier).build());
+
+        market.addEntry(e.startBooleanToggle(Text.literal("Enable Event Pressure"),
+                QuantCraftConfig.isEventPressureEnabled()).setDefaultValue(true)
+                .setTooltip(Text.literal("World events affect prices"))
+                .setSaveConsumer(QuantCraftConfig::setEventPressureEnabled).build());
+
+        market.addEntry(e.startBooleanToggle(Text.literal("Enable Market News"),
+                QuantCraftConfig.isMarketNewsEnabled()).setDefaultValue(true)
+                .setSaveConsumer(QuantCraftConfig::setMarketNewsEnabled).build());
+
+        var structures = builder.getOrCreateCategory(Text.literal("Structures"));
+
+        structures.addEntry(e.startBooleanToggle(Text.literal("Spawn Investment Centers"),
+                QuantCraftConfig.isSpawnTradingHuts()).setDefaultValue(true)
+                .setSaveConsumer(QuantCraftConfig::setSpawnTradingHuts).build());
+
+        structures.addEntry(e.startIntField(Text.literal("Investment Center Rarity"),
+                QuantCraftConfig.getHutSpawnRarity()).setDefaultValue(32).setMin(8).setMax(256)
+                .setTooltip(Text.literal("Lower = more common. ~1 per N chunks"))
+                .setSaveConsumer(QuantCraftConfig::setHutSpawnRarity).build());
+
+        return builder.build();
+    }
+}
