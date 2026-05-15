@@ -1,6 +1,7 @@
 package com.quantcraft.item;
 
 import com.quantcraft.network.ModPackets;
+import com.quantcraft.registry.ModItems;
 import net.minecraft.client.item.TooltipContext;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.*;
@@ -25,6 +26,20 @@ public class NewspaperItem extends Item {
 
     public NewspaperType getType() { return type; }
 
+    public static Item getItemForType(NewspaperType type) {
+        return switch (type) {
+            case DIAMOND_DISCOVERY -> ModItems.NP_DIAMOND_DISCOVERY;
+            case TRADE_WAR         -> ModItems.NP_TRADE_WAR;
+            case MINING_BOOM       -> ModItems.NP_MINING_BOOM;
+            case LUMBER_SHORTAGE   -> ModItems.NP_LUMBER_SHORTAGE;
+            case GOLD_RUSH         -> ModItems.NP_GOLD_RUSH;
+            case HARVEST_FESTIVAL  -> ModItems.NP_HARVEST_FESTIVAL;
+            case ARCANE_ANOMALY    -> ModItems.NP_ARCANE_ANOMALY;
+            case LIVESTOCK_PLAGUE  -> ModItems.NP_LIVESTOCK_PLAGUE;
+            case EMERALD_CARTEL    -> ModItems.NP_EMERALD_CARTEL;
+        };
+    }
+
     @Override
     public TypedActionResult<ItemStack> use(World world, PlayerEntity user, Hand hand) {
         if (!world.isClient && user instanceof ServerPlayerEntity sp)
@@ -34,7 +49,7 @@ public class NewspaperItem extends Item {
 
     @Override
     public void appendTooltip(ItemStack stack, World world, List<Text> tooltip, TooltipContext ctx) {
-        tooltip.add(Text.literal("§cBreaking News!"));
-        tooltip.add(Text.literal("Right-click to read").formatted(Formatting.GRAY));
+        tooltip.add(Text.literal("Already read.").formatted(Formatting.GRAY));
+        tooltip.add(Text.literal("Right-click to re-read the article.").formatted(Formatting.DARK_GRAY));
     }
 }

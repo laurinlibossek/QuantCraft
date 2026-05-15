@@ -1,7 +1,9 @@
 package com.quantcraft.registry;
 
 import com.quantcraft.QuantCraftMod;
-import com.quantcraft.item.*;
+import com.quantcraft.item.DollarBillItem;
+import com.quantcraft.item.NewspaperItem;
+import com.quantcraft.item.SealedNewspaperItem;
 import net.minecraft.client.item.TooltipContext;
 import net.minecraft.item.*;
 import net.minecraft.registry.*;
@@ -17,12 +19,12 @@ public class ModItems {
         @Override public void appendTooltip(ItemStack s, World w, List<Text> t, TooltipContext c) {
             t.add(Text.literal("The QuantCraft stock exchange. Buy and sell shares,").formatted(Formatting.GRAY));
             t.add(Text.literal("place limit orders, and track your portfolio.").formatted(Formatting.GRAY));
-            t.add(Text.literal("Sneak + right-click with bills to deposit.").formatted(Formatting.DARK_GRAY));
+            t.add(Text.literal("Hold dollar bills and right-click to deposit.").formatted(Formatting.DARK_GRAY));
         }
     };
     public static final Item COMMODITY_EXCHANGE= new BlockItem(ModBlocks.COMMODITY_EXCHANGE, new Item.Settings()) {
         @Override public void appendTooltip(ItemStack s, World w, List<Text> t, TooltipContext c) {
-            t.add(Text.literal("Trade physical Minecraft items for coins.").formatted(Formatting.GRAY));
+            t.add(Text.literal("Trade physical Minecraft items for dollars.").formatted(Formatting.GRAY));
             t.add(Text.literal("Prices follow the stock market.").formatted(Formatting.GRAY));
         }
     };
@@ -32,6 +34,8 @@ public class ModItems {
             t.add(Text.literal("Track up to 10 stocks and monitor live prices.").formatted(Formatting.GRAY));
         }
     };
+
+    public static final Item SEALED_NEWSPAPER     = new SealedNewspaperItem(new Item.Settings());
 
     public static final Item NP_DIAMOND_DISCOVERY = new NewspaperItem(NewspaperItem.NewspaperType.DIAMOND_DISCOVERY, new Item.Settings());
     public static final Item NP_TRADE_WAR         = new NewspaperItem(NewspaperItem.NewspaperType.TRADE_WAR,         new Item.Settings());
@@ -48,6 +52,7 @@ public class ModItems {
         reg("trading_post",                 TRADING_POST);
         reg("commodity_exchange",           COMMODITY_EXCHANGE);
         reg("quotron",                      QUOTRON);
+        reg("sealed_newspaper",             SEALED_NEWSPAPER);
         reg("newspaper_diamond_discovery",  NP_DIAMOND_DISCOVERY);
         reg("newspaper_trade_war",          NP_TRADE_WAR);
         reg("newspaper_mining_boom",        NP_MINING_BOOM);

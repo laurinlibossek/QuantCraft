@@ -8,6 +8,7 @@ import com.quantcraft.persistence.MarketPersistentState;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
+
 import java.util.*;
 
 public class MarketEngine {
@@ -81,6 +82,8 @@ public class MarketEngine {
         tickSimulated(server);
         processShortPositions(server, ps);
         payDividendsIfDue(server, ps);
+        if (marketTickCount % 200 == 0)
+            OtcTradeManager.getInstance().purgeExpired(server.getOverworld().getTime());
         ps.saveStates(states);
         ModPackets.broadcastMarketUpdate(server, getSnapshot());
     }
@@ -132,7 +135,7 @@ public class MarketEngine {
 
             float mult = QuantCraftConfig.getGlobalVolatilityMultiplier();
             if (eventPressure != 0 || sectorMod != 0)
-                state.updatePrice(state.getCurrentPrice() + (eventPressure + sectorMod) * 0.3 * mult);
+                state.updatePrice(state.getCurrentPrice() + (eventPressure + sectorMod) * 0.1 * mult);
 
             double pct = state.getDailyChangePercent();
             if (Math.abs(pct) > 5.0 && QuantCraftConfig.isMarketNewsEnabled())
@@ -152,32 +155,36 @@ public class MarketEngine {
             } else {
                 PlayerPortfolio portfolio = ps.getPortfolio(order.getPlayerUuid());
                 int qty = order.getFilledQty();
+                double taxRate = QuantCraftConfig.getTaxRate();
                 if (order.getSide() == LimitOrder.Side.BUY) {
                     int avail = state.getAvailableShares(def.totalShares());
                     int fill  = Math.min(qty, avail);
                     int unfilled = qty - fill;
                     if (unfilled > 0) {
-                        portfolio.addCoins(order.getLimitPrice() * unfilled);
+                        portfolio.addBalance(order.getLimitPrice() * unfilled);
                         notify(server, order.getPlayerUuid(),
                                 String.format("§eLimit BUY partial: %d/%d %s filled, §e%.1f¢§e refunded for unfilled portion",
                                         fill, qty, def.ticker(), order.getLimitPrice() * unfilled));
                     }
                     if (fill > 0) {
+                        double tax = price * fill * taxRate;
+                        portfolio.deductBalance(tax);
                         portfolio.addShares(def.ticker(), fill);
                         state.adjustSharesHeld(+fill);
                         state.getCandleHistory().recordTrade(price, fill);
                         fireEvent(WorldMarketEvent.PLAYER_BOUGHT_STOCK, def.ticker());
                         notify(server, order.getPlayerUuid(),
-                                String.format("§aLimit BUY filled: %d %s @ §e%.1f¢", fill, def.ticker(), price));
+                                String.format("§aLimit BUY filled: %d %s @ §e%.1f¢ §7(%.0f%% tax)", fill, def.ticker(), price, taxRate * 100));
                     }
                 } else {
                     int fill = qty;
-                    portfolio.addCoins(price * fill);
+                    double tax = price * fill * taxRate;
+                    portfolio.addBalance(price * fill - tax);
                     state.adjustSharesHeld(-fill);
                     state.getCandleHistory().recordTrade(price, fill);
                     fireEvent(WorldMarketEvent.PLAYER_SOLD_STOCK, def.ticker());
                     notify(server, order.getPlayerUuid(),
-                            String.format("§aLimit SELL filled: %d %s @ §e%.1f¢", fill, def.ticker(), price));
+                            String.format("§aLimit SELL filled: %d %s @ §e%.1f¢ §7(%.0f%% tax)", fill, def.ticker(), price, taxRate * 100));
                 }
             }
         }
@@ -194,11 +201,14 @@ public class MarketEngine {
         int fill  = Math.min(qty, avail);
         if (fill <= 0) return false;
         double price = ss.getCurrentPrice();
+        double tax   = price * fill * QuantCraftConfig.getTaxRate();
         PlayerPortfolio p = ps.getPortfolio(playerUuid);
+        if (p.getBalance() < price * fill + tax) return false;
         if (!p.buy(ticker, fill, price)) return false;
+        p.deductBalance(tax);
         ss.adjustSharesHeld(+fill);
         ss.getCandleHistory().recordTrade(price, fill);
-        ss.applyEventPressure(+0.1 * fill);
+        ss.applyEventPressure(+fill * price / def.totalShares() * 5.0);
         ps.markDirty();
         return true;
     }
@@ -208,11 +218,14 @@ public class MarketEngine {
         StockState ss = getState(ticker);
         if (ss == null) return false;
         double price = ss.getCurrentPrice();
+        double tax   = price * qty * QuantCraftConfig.getTaxRate();
         PlayerPortfolio p = ps.getPortfolio(playerUuid);
         if (!p.sell(ticker, qty, price)) return false;
+        p.deductBalance(tax);
+        StockDefinition def = StockRegistry.get(ticker);
         ss.adjustSharesHeld(-qty);
         ss.getCandleHistory().recordTrade(price, qty);
-        ss.applyEventPressure(-0.08 * qty);
+        ss.applyEventPressure(-qty * price / def.totalShares() * 5.0);
         ps.markDirty();
         return true;
     }
@@ -241,11 +254,11 @@ public class MarketEngine {
                                   MinecraftServer server, MarketPersistentState ps) {
         double buyback = price * pos.getShares();
         PlayerPortfolio port = ps.getPortfolio(uuid);
-        double deducted = Math.min(port.getCoinBalance(), buyback);
-        port.deductCoins(deducted);
+        double deducted = Math.min(port.getBalance(), buyback);
+        port.deductBalance(deducted);
         double loss     = (price - pos.getOpenPrice()) * pos.getShares() + pos.getAccruedFee();
         double returned = Math.max(0, pos.getMarginReserve() - loss);
-        port.addCoins(returned);
+        port.addBalance(returned);
         StockState ss = states.get(pos.getTicker());
         if (ss != null) {
             LiquidityBot bot = bots.get(pos.getTicker());
@@ -277,6 +290,7 @@ public class MarketEngine {
             try {
                 StringBuilder sb = new StringBuilder();
                 double total = 0;
+                double taxRate = QuantCraftConfig.getTaxRate();
                 for (var holding : port.getHoldings().entrySet()) {
                     String tk    = holding.getKey();
                     int    qty   = holding.getValue();
@@ -286,12 +300,14 @@ public class MarketEngine {
                     if (rate == 0) continue;
                     StockState ss = states.get(tk);
                     if (ss == null) continue;
-                    double payout = qty * ss.getCurrentPrice() * rate;
-                    if (payout < 0.01) continue;
-                    port.addCoins(payout);
+                    double gross  = qty * ss.getCurrentPrice() * rate;
+                    if (gross < 0.01) continue;
+                    double tax    = gross * taxRate;
+                    double payout = gross - tax;
+                    port.addBalance(payout);
                     total += payout;
-                    sb.append(String.format("§a§lDIVIDEND PAID: §f%.2f¢ §7(%s ×%d @ %.3f¢/share)\n",
-                            payout, tk, qty, ss.getCurrentPrice() * rate));
+                    sb.append(String.format("§a§lDIVIDEND PAID: §f%.2f¢ §7(%s ×%d, %.0f%% withheld)\n",
+                            payout, tk, qty, taxRate * 100));
                 }
                 if (total > 0) {
                     String lines = sb.toString().trim();
@@ -363,6 +379,7 @@ public class MarketEngine {
     public void setFrozen(boolean v)                          { frozen = v; }
     public boolean isFrozen()                                 { return frozen; }
     public boolean isMarketOpen()                             { return marketOpen; }
+    public void setMarketOpen(boolean v)                      { marketOpen = v; }
     public void applySectorPressure(MarketSector s, double d) { pressureSector(s, d); }
     public void applyTickerPressure(String t, double d)       { pressureTicker(t, d); }
 

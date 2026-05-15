@@ -52,9 +52,11 @@ public class QuantCraftMod implements ModInitializer {
         });
 
         ServerTickEvents.END_SERVER_TICK.register(server -> {
-            // Market open/close transition broadcasts (fire once per transition)
+            // Update marketOpen every tick so trades are gated at the same threshold as the broadcast
             long    tod   = server.getOverworld().getTimeOfDay() % 24000L;
             boolean isNow = tod < 13000L;
+            MarketEngine.getInstance().setMarketOpen(isNow);
+
             if (isNow && !marketWasOpen && !hasAnnouncedOpen) {
                 broadcastMarketOpen(server);
                 hasAnnouncedOpen = true;
@@ -88,7 +90,7 @@ public class QuantCraftMod implements ModInitializer {
         var closing = engine.getClosingPrices();
         var snap    = engine.getSnapshot();
 
-        server.getPlayerManager().broadcast(Text.literal("§6§l[ QUANTCRAFT MARKET OPEN ]"), false);
+        server.getPlayerManager().broadcast(Text.literal("§6§l[ MARKET OPEN ]"), false);
 
         if (closing.isEmpty()) {
             server.getPlayerManager().broadcast(Text.literal("§7Type /qc prices for full list."), false);
@@ -131,7 +133,7 @@ public class QuantCraftMod implements ModInitializer {
 
     private static void broadcastMarketClose(MinecraftServer server) {
         var snap = MarketEngine.getInstance().getSnapshot();
-        server.getPlayerManager().broadcast(Text.literal("§c§l[ QUANTCRAFT MARKET CLOSED ]"), false);
+        server.getPlayerManager().broadcast(Text.literal("§c§l[ MARKET CLOSED ]"), false);
         server.getPlayerManager().broadcast(Text.literal("§eToday's closing prices:"), false);
 
         var tickers = new ArrayList<>(snap.entrySet());

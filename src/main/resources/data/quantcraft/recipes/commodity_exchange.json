@@ -1,10 +1,19 @@
 {
   "type": "minecraft:crafting_shaped",
-  "pattern": ["CCC","CHC","SSS"],
+  "pattern": [
+    "DED",
+    "GHG",
+    "OOO"
+  ],
   "key": {
-    "C": {"item": "minecraft:copper_ingot"},
+    "D": {"item": "minecraft:diamond"},
+    "E": {"item": "minecraft:emerald_block"},
+    "G": {"item": "minecraft:gold_block"},
     "H": {"item": "minecraft:hopper"},
-    "S": {"item": "minecraft:smooth_stone"}
+    "O": {"item": "minecraft:obsidian"}
   },
-  "result": {"item": "quantcraft:commodity_exchange", "count": 1}
+  "result": {
+    "item": "quantcraft:commodity_exchange",
+    "count": 1
+  }
 }

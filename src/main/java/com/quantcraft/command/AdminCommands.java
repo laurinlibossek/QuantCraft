@@ -31,12 +31,12 @@ public class AdminCommands {
                         .executes(ctx -> adjustBal(ctx.getSource(),
                             EntityArgumentType.getPlayer(ctx, "player"),
                             DoubleArgumentType.getDouble(ctx, "amount"), "SET")))))
-                .then(literal("givecoins").then(argument("player", EntityArgumentType.player())
+                .then(literal("give").then(argument("player", EntityArgumentType.player())
                     .then(argument("amount", DoubleArgumentType.doubleArg(0))
                         .executes(ctx -> adjustBal(ctx.getSource(),
                             EntityArgumentType.getPlayer(ctx, "player"),
                             DoubleArgumentType.getDouble(ctx, "amount"), "ADD")))))
-                .then(literal("takecoins").then(argument("player", EntityArgumentType.player())
+                .then(literal("take").then(argument("player", EntityArgumentType.player())
                     .then(argument("amount", DoubleArgumentType.doubleArg(0))
                         .executes(ctx -> adjustBal(ctx.getSource(),
                             EntityArgumentType.getPlayer(ctx, "player"),
@@ -73,12 +73,12 @@ public class AdminCommands {
                     .then(literal("enable") .executes(ctx -> botEnabled(ctx.getSource(), StringArgumentType.getString(ctx, "ticker"), true)))
                     .then(literal("disable").executes(ctx -> botEnabled(ctx.getSource(), StringArgumentType.getString(ctx, "ticker"), false)))
                     .then(literal("info")   .executes(ctx -> botInfo(ctx.getSource(), StringArgumentType.getString(ctx, "ticker"))))
-                    .then(literal("coins").then(argument("amount", DoubleArgumentType.doubleArg(0))
+                    .then(literal("cash").then(argument("amount", DoubleArgumentType.doubleArg(0))
                         .executes(ctx -> {
                             LiquidityBot b = MarketEngine.getInstance().getBot(StringArgumentType.getString(ctx, "ticker").toUpperCase());
                             if (b == null) { ctx.getSource().sendError(Text.literal("No bot.")); return 0; }
-                            b.setCoinReserve(DoubleArgumentType.getDouble(ctx, "amount"));
-                            ctx.getSource().sendFeedback(() -> Text.literal("[QCAdmin] Bot coins set."), false); return 1;
+                            b.setCashReserve(DoubleArgumentType.getDouble(ctx, "amount"));
+                            ctx.getSource().sendFeedback(() -> Text.literal("[QCAdmin] Bot cash set."), false); return 1;
                         })))
                     .then(literal("shares").then(argument("amount", IntegerArgumentType.integer(0))
                         .executes(ctx -> {
@@ -126,13 +126,13 @@ public class AdminCommands {
         var ps = MarketPersistentState.getOrCreate(src.getServer().getOverworld());
         var p  = ps.getPortfolio(player.getUuid());
         switch (mode) {
-            case "SET"  -> p.setCoins(amount);
-            case "ADD"  -> p.addCoins(amount);
-            case "TAKE" -> p.deductCoins(amount);
+            case "SET"  -> p.setBalance(amount);
+            case "ADD"  -> p.addBalance(amount);
+            case "TAKE" -> p.deductBalance(amount);
         }
         ps.markDirty();
         src.sendFeedback(() -> Text.literal(String.format("[QCAdmin] %s balance: %.1f¢",
-                player.getName().getString(), p.getCoinBalance())), true);
+                player.getName().getString(), p.getBalance())), true);
         return 1;
     }
 
@@ -189,7 +189,7 @@ public class AdminCommands {
         var snap = MarketEngine.getInstance().getSnapshot();
         ps.getAllPortfolios().forEach((uuid, p) ->
             src.sendFeedback(() -> Text.literal(String.format("  %s | Cash:%.1f | Total:%.1f",
-                    uuid, p.getCoinBalance(), p.getTotalValue(snap))), false));
+                    uuid, p.getBalance(), p.getTotalValue(snap))), false));
         return 1;
     }
 
@@ -202,7 +202,7 @@ public class AdminCommands {
                 if (!o.getPlayerUuid().equals(target.getUuid())) continue;
                 if (o.getSide() == LimitOrder.Side.BUY) {
                     var ps = MarketPersistentState.getOrCreate(src.getServer().getOverworld());
-                    ps.getPortfolio(target.getUuid()).addCoins(o.getLimitPrice() * o.getRemainingQty());
+                    ps.getPortfolio(target.getUuid()).addBalance(o.getLimitPrice() * o.getRemainingQty());
                     ps.markDirty();
                 }
                 count++;
@@ -226,9 +226,9 @@ public class AdminCommands {
         LiquidityBot b = MarketEngine.getInstance().getBot(ticker.toUpperCase());
         if (b == null) { src.sendError(Text.literal("No bot for: " + ticker)); return 0; }
         src.sendFeedback(() -> Text.literal(String.format(
-                "[QCAdmin] Bot %s | En:%b | Shares:%,d | Coins:%.1f | Spread:%.1f%% | Target:%.2f",
+                "[QCAdmin] Bot %s | En:%b | Shares:%,d | Cash:%.1f | Spread:%.1f%% | Target:%.2f",
                 ticker.toUpperCase(), b.isEnabled(), b.getShareReserve(),
-                b.getCoinReserve(), b.getSpreadPct() * 100, b.getTargetPriceMid())), false);
+                b.getCashReserve(), b.getSpreadPct() * 100, b.getTargetPriceMid())), false);
         return 1;
     }
 }

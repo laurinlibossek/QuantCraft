@@ -37,6 +37,7 @@ public class TradingPostScreen extends HandledScreen<TradingPostScreenHandler> {
         addDrawableChild(ButtonWidget.builder(Text.literal("Sell 1"),  btn -> click(101)).dimensions(x + 60,  y + backgroundHeight - 48, 55, 18).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("Buy 64"),  btn -> click(102)).dimensions(x + 120, y + backgroundHeight - 48, 55, 18).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("Sell 64"), btn -> click(103)).dimensions(x + 180, y + backgroundHeight - 48, 60, 18).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Withdraw $"), btn -> { click(200); this.close(); }).dimensions(x + backgroundWidth - 82, y + backgroundHeight - 48, 76, 18).build());
         // Tabs
         addDrawableChild(ButtonWidget.builder(Text.literal("Market"),    btn -> activeTab = 0).dimensions(x + 5,   y + backgroundHeight - 25, 60, 18).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("Portfolio"), btn -> activeTab = 1).dimensions(x + 70,  y + backgroundHeight - 25, 65, 18).build());
@@ -57,7 +58,7 @@ public class TradingPostScreen extends HandledScreen<TradingPostScreenHandler> {
 
     @Override protected void drawForeground(DrawContext ctx, int mx, int my) {
         ctx.drawText(textRenderer, "QUANTCRAFT EXCHANGE", 6, 5, GOLD, false);
-        String bal = String.format("%.1f¢", handler.playerCoinBalance);
+        String bal = String.format("%.1f¢", handler.playerBalance);
         ctx.drawText(textRenderer, bal, backgroundWidth - textRenderer.getWidth(bal) - 4, 5, GOLD, false);
         switch (activeTab) {
             case 0 -> drawMarket(ctx, mx - (width - backgroundWidth) / 2, my - (height - backgroundHeight) / 2);
@@ -134,7 +135,7 @@ public class TradingPostScreen extends HandledScreen<TradingPostScreenHandler> {
     private void drawPortfolio(DrawContext ctx) {
         int ry = 25;
         ctx.drawText(textRenderer, "YOUR PORTFOLIO", 6, ry, GOLD, false); ry += 14;
-        ctx.drawText(textRenderer, String.format("Cash: %.1f¢", handler.playerCoinBalance), 6, ry, 0xFFddddee, false); ry += 14;
+        ctx.drawText(textRenderer, String.format("Cash: %.1f¢", handler.playerBalance), 6, ry, 0xFFddddee, false); ry += 14;
         double total = 0;
         if (handler.playerHoldings.isEmpty()) {
             ctx.drawText(textRenderer, "No holdings.", 6, ry, GRAY, false); ry += 12;
@@ -161,7 +162,7 @@ public class TradingPostScreen extends HandledScreen<TradingPostScreenHandler> {
             }
         }
         ry += 4;
-        ctx.drawText(textRenderer, String.format("Total: %.1f¢", handler.playerCoinBalance + total), 6, ry, GOLD, false);
+        ctx.drawText(textRenderer, String.format("Total: %.1f¢", handler.playerBalance + total), 6, ry, GOLD, false);
     }
 
     private void drawNews(DrawContext ctx) {
@@ -212,6 +213,12 @@ public class TradingPostScreen extends HandledScreen<TradingPostScreenHandler> {
         int max = Math.max(0, handler.stocks.size() - ROWS);
         scroll = (int)Math.max(0, Math.min(max, scroll - v));
         return true;
+    }
+
+    public void onPortfolioUpdate(double balance, Map<String, Integer> holdings) {
+        handler.playerBalance = balance;
+        handler.playerHoldings.clear();
+        handler.playerHoldings.putAll(holdings);
     }
 
     public void onMarketUpdate(java.util.Map<String, double[]> updates) {
