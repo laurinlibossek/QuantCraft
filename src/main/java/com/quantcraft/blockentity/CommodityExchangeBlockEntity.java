@@ -39,7 +39,7 @@ public class CommodityExchangeBlockEntity extends BlockEntity implements Extende
         }
         if (world != null && world.getServer() != null) {
             var ps = MarketPersistentState.getOrCreate(world.getServer().getOverworld());
-            buf.writeDouble(ps.getPortfolio(player.getUuid()).getCoinBalance());
+            buf.writeDouble(ps.getPortfolio(player.getUuid()).getBalance());
         } else {
             buf.writeDouble(0);
         }

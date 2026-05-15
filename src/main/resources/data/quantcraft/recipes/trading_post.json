@@ -1,12 +1,29 @@
 {
   "type": "minecraft:crafting_shaped",
-  "pattern": ["PPP","CRC","SLS"],
+  "pattern": [
+    "GGG",
+    "DRD",
+    "ELE"
+  ],
   "key": {
-    "P": {"item": "minecraft:oak_planks"},
-    "C": {"item": "minecraft:gold_ingot"},
-    "R": {"item": "minecraft:redstone_block"},
-    "S": {"item": "minecraft:stone"},
-    "L": {"item": "minecraft:lectern"}
+    "G": {
+      "item": "minecraft:gold_block"
+    },
+    "D": {
+      "item": "minecraft:diamond"
+    },
+    "R": {
+      "item": "minecraft:redstone_block"
+    },
+    "E": {
+      "item": "minecraft:emerald"
+    },
+    "L": {
+      "item": "minecraft:lectern"
+    }
   },
-  "result": {"item": "quantcraft:trading_post", "count": 1}
+  "result": {
+    "item": "quantcraft:trading_post",
+    "count": 1
+  }
 }

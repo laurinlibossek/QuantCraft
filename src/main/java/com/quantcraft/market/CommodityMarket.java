@@ -12,7 +12,7 @@ public class CommodityMarket {
     private CommodityMarket() {}
 
     private static final double TAX_RATE       = 0.05;
-    private static final double DAILY_CAP      = 500.0;
+    private static final double DAILY_CAP      = 5000.0;
 
     public synchronized boolean buyItem(ServerPlayerEntity player, String ticker, int qty, MarketPersistentState ps) {
         if (!MarketEngine.getInstance().isMarketOpen()) {
@@ -24,11 +24,11 @@ public class CommodityMarket {
         if (def == null || ss == null) return false;
         double cost = def.getItemBuyPrice(ss.getCurrentPrice()) * qty;
         PlayerPortfolio portfolio = ps.getPortfolio(player.getUuid());
-        if (portfolio.getCoinBalance() < cost) return false;
+        if (portfolio.getBalance() < cost) return false;
         ItemStack items = new ItemStack(def.getItem(), qty);
         if (!player.getInventory().insertStack(items)) return false;
-        portfolio.deductCoins(cost);
-        ss.applyEventPressure(+qty * 0.1);
+        portfolio.deductBalance(cost);
+        ss.applyEventPressure(+qty * def.basePrice() / def.totalShares() * 2.0);
         ps.markDirty();
         return true;
     }
@@ -42,7 +42,10 @@ public class CommodityMarket {
         StockState      ss  = MarketEngine.getInstance().getState(ticker);
         if (def == null || ss == null) return false;
         int held = countItems(player, def);
-        if (held < qty) return false;
+        if (held < qty) {
+            player.sendMessage(Text.literal("§cNot enough items."), true);
+            return false;
+        }
 
         double pricePerItem = def.getItemSellPrice(ss.getCurrentPrice());
         double earned       = ps.getDailyExchangeEarnings(player.getUuid());
@@ -64,8 +67,8 @@ public class CommodityMarket {
         double netGain   = grossGain - tax;
 
         removeItems(player, def, effectiveQty);
-        ss.applyEventPressure(-effectiveQty * 0.08);
-        ps.getPortfolio(player.getUuid()).addCoins(netGain);
+        ss.applyEventPressure(-effectiveQty * def.basePrice() / def.totalShares() * 2.0);
+        ps.getPortfolio(player.getUuid()).addBalance(netGain);
         ps.addDailyExchangeEarnings(player.getUuid(), grossGain);
         String msg = inEnd
                 ? String.format("§aSold %d %s for §e%.1f¢ §d(tax-free zone)", effectiveQty, ticker, netGain)

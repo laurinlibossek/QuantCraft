@@ -17,7 +17,7 @@ public class QuantCraftConfigScreen {
 
         general.addEntry(e.startIntField(Text.literal("Starting Balance"),
                 QuantCraftConfig.getStartingBalance()).setDefaultValue(500).setMin(0).setMax(1000000)
-                .setTooltip(Text.literal("Coins given to new players"))
+                .setTooltip(Text.literal("Starting balance for new players"))
                 .setSaveConsumer(QuantCraftConfig::setStartingBalance).build());
 
         general.addEntry(e.startIntField(Text.literal("Market Tick Interval (ticks)"),
@@ -40,6 +40,11 @@ public class QuantCraftConfigScreen {
         market.addEntry(e.startBooleanToggle(Text.literal("Enable Market News"),
                 QuantCraftConfig.isMarketNewsEnabled()).setDefaultValue(true)
                 .setSaveConsumer(QuantCraftConfig::setMarketNewsEnabled).build());
+
+        market.addEntry(e.startDoubleField(Text.literal("Transaction Tax Rate"),
+                QuantCraftConfig.getTaxRate()).setDefaultValue(0.02).setMin(0.0).setMax(0.25)
+                .setTooltip(Text.literal("Tax on stock trades and dividends. 0.02 = 2%. Removed from economy."))
+                .setSaveConsumer(QuantCraftConfig::setTaxRate).build());
 
         var structures = builder.getOrCreateCategory(Text.literal("Structures"));
 

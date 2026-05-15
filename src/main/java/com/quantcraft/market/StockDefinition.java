@@ -18,8 +18,6 @@ public record StockDefinition(
 ) {
     public Item getItem() { return Registries.ITEM.get(itemId); }
 
-    public String realWorldTicker() { return StockRegistry.getRealWorldTicker(this.ticker); }
-
     public double getItemBuyPrice(double stockPrice) {
         return Math.max(priceFloor, stockPrice * commodityFactor);
     }

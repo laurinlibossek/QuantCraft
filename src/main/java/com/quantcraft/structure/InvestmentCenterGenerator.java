@@ -2,29 +2,45 @@ package com.quantcraft.structure;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import com.quantcraft.config.QuantCraftConfig;
 import com.quantcraft.registry.ModStructures;
+import net.minecraft.structure.StructureTemplateManager;
+import net.minecraft.util.BlockRotation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.Heightmap;
-import net.minecraft.world.gen.structure.*;
+import net.minecraft.world.gen.structure.Structure;
+import net.minecraft.world.gen.structure.StructureType;
+
 import java.util.Optional;
 
 public class InvestmentCenterGenerator extends Structure {
+
     public static final Codec<InvestmentCenterGenerator> CODEC =
-            RecordCodecBuilder.create(i -> i.group(
-                Structure.configCodecBuilder(i)
-            ).apply(i, InvestmentCenterGenerator::new));
+            RecordCodecBuilder.create(instance ->
+                    instance.group(Structure.configCodecBuilder(instance))
+                            .apply(instance, InvestmentCenterGenerator::new));
 
-    public InvestmentCenterGenerator(Config c) { super(c); }
-
-    @Override
-    public Optional<StructurePosition> getStructurePosition(Context ctx) {
-        if (!QuantCraftConfig.isSpawnTradingHuts()) return Optional.empty();
-        return getStructurePosition(ctx, Heightmap.Type.WORLD_SURFACE_WG,
-                collector -> collector.addPiece(new InvestmentCenterPiece(
-                        ModStructures.INVESTMENT_CENTER_PIECE,
-                        new BlockPos(ctx.chunkPos().getStartX(), 64, ctx.chunkPos().getStartZ()))));
+    public InvestmentCenterGenerator(Config config) {
+        super(config);
     }
 
-    @Override public StructureType<?> getType() { return ModStructures.INVESTMENT_CENTER; }
+    @Override
+    public Optional<StructurePosition> getStructurePosition(Context context) {
+        return getStructurePosition(context, Heightmap.Type.WORLD_SURFACE_WG, collector -> {
+            int x = context.chunkPos().getCenterX();
+            int z = context.chunkPos().getCenterZ();
+            int y = context.chunkGenerator().getHeightOnGround(
+                    x, z, Heightmap.Type.WORLD_SURFACE_WG,
+                    context.world(), context.noiseConfig());
+
+            BlockRotation rotation = BlockRotation.random(context.random());
+            StructureTemplateManager manager = context.structureTemplateManager();
+
+            collector.addPiece(new InvestmentCenterPiece(manager, new BlockPos(x, y - 1, z), rotation));
+        });
+    }
+
+    @Override
+    public StructureType<?> getType() {
+        return ModStructures.INVESTMENT_CENTER;
+    }
 }

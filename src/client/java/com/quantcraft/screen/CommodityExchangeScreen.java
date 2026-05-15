@@ -94,7 +94,7 @@ public class CommodityExchangeScreen extends HandledScreen<CommodityExchangeScre
         for (int i = scroll; i < Math.min(rows.size(), scroll + ROWS); i++) {
             int rowY = y + 38 + (i - scroll) * ROW_H;
             if (my >= rowY && my < rowY + ROW_H && mx >= x && mx < x + 205) {
-                if (client != null) client.interactionManager.clickButton(handler.syncId, i);
+                ModPacketsClient.sendButtonClick(handler.syncId, i);
                 return true;
             }
         }
@@ -105,6 +105,10 @@ public class CommodityExchangeScreen extends HandledScreen<CommodityExchangeScre
         int max = Math.max(0, handler.rows.size() - ROWS);
         scroll = (int)Math.max(0, Math.min(max, scroll - v));
         return true;
+    }
+
+    public void onPortfolioUpdate(double balance) {
+        handler.playerBalance = balance;
     }
 
     @Override public void render(DrawContext ctx, int mx, int my, float d) {

@@ -51,7 +51,7 @@ public class TradingPostBlockEntity extends BlockEntity implements ExtendedScree
         if (world != null && world.getServer() != null) {
             var ps = MarketPersistentState.getOrCreate(world.getServer().getOverworld());
             PlayerPortfolio p = ps.getPortfolio(player.getUuid());
-            buf.writeDouble(p.getCoinBalance());
+            buf.writeDouble(p.getBalance());
             buf.writeInt(p.getHoldings().size());
             p.getHoldings().forEach((t, q) -> { buf.writeString(t); buf.writeInt(q); });
         } else {

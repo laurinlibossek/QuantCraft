@@ -56,11 +56,13 @@ public class MarketPersistentState extends PersistentState {
                 PlayerPortfolio p    = new PlayerPortfolio(pn.getDouble("balance"));
                 NbtCompound     hld  = pn.getCompound("holdings");
                 NbtCompound     acq  = pn.contains("acquiredAt") ? pn.getCompound("acquiredAt") : new NbtCompound();
+                NbtCompound     avg  = pn.contains("avgCosts") ? pn.getCompound("avgCosts") : new NbtCompound();
                 for (String tk : hld.getKeys()) {
                     int q = hld.getInt(tk);
                     if (q > 0) {
                         long tick = acq.contains(tk) ? acq.getLong(tk) : 0L;
                         p.addSharesAt(tk, q, tick);
+                        if (avg.contains(tk)) p.setAvgCost(tk, avg.getDouble(tk));
                     }
                 }
                 state.portfolios.put(uuid, p);
@@ -75,7 +77,7 @@ public class MarketPersistentState extends PersistentState {
                 if (def == null) continue;
                 LiquidityBot bot = new LiquidityBot(tk, bn.getDouble("target"),
                         (int)(def.totalShares() * 0.20));
-                bot.setCoinReserve(bn.getDouble("coins"));
+                bot.setCashReserve(bn.getDouble("coins"));
                 bot.setShareReserve(bn.getInt("shares"));
                 bot.setTargetPriceMid(bn.getDouble("target"));
                 bot.setSpreadPct(bn.getDouble("spread"));
@@ -181,13 +183,16 @@ public class MarketPersistentState extends PersistentState {
         for (var e : portfolios.entrySet()) {
             PlayerPortfolio p  = e.getValue();
             NbtCompound     pn = new NbtCompound();
-            pn.putDouble("balance", p.getCoinBalance());
+            pn.putDouble("balance", p.getBalance());
             NbtCompound hld = new NbtCompound();
             p.getHoldings().forEach((tk, q) -> hld.putInt(tk, q));
             pn.put("holdings", hld);
             NbtCompound acq = new NbtCompound();
             p.getAllAcquiredTicks().forEach(acq::putLong);
             pn.put("acquiredAt", acq);
+            NbtCompound avg = new NbtCompound();
+            p.getAvgCosts().forEach(avg::putDouble);
+            pn.put("avgCosts", avg);
             pNbts.put(e.getKey().toString(), pn);
         }
         nbt.put("portfolios", pNbts);
@@ -211,7 +216,7 @@ public class MarketPersistentState extends PersistentState {
         NbtCompound botsNbt = new NbtCompound();
         MarketEngine.getInstance().getAllBots().forEach((tk, bot) -> {
             NbtCompound bn = new NbtCompound();
-            bn.putDouble("coins",    bot.getCoinReserve());
+            bn.putDouble("coins",    bot.getCashReserve());
             bn.putInt("shares",      bot.getShareReserve());
             bn.putDouble("target",   bot.getTargetPriceMid());
             bn.putDouble("spread",   bot.getSpreadPct());
