@@ -6,7 +6,6 @@ import com.quantcraft.persistence.MarketPersistentState;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.block.*;
 import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.entity.EntityPose;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -32,32 +31,24 @@ public class TradingPostBlock extends BlockWithEntity {
         if (world.isClient) return ActionResult.SUCCESS;
         if (hand != Hand.MAIN_HAND) return ActionResult.PASS;
 
-        if (player.isSneaking() || player.getPose() == EntityPose.CROUCHING) {
+        // Holding dollar bills → deposit all bills from inventory
+        ItemStack mainHand = player.getMainHandStack();
+        if (!mainHand.isEmpty() && mainHand.getItem() instanceof DollarBillItem) {
             if (!(player instanceof ServerPlayerEntity sp)) return ActionResult.SUCCESS;
-            int totalCoins = 0;
+            int totalDeposit = 0;
             for (int i = 0; i < player.getInventory().size(); i++) {
                 ItemStack stack = player.getInventory().getStack(i);
                 if (!stack.isEmpty() && stack.getItem() instanceof DollarBillItem) {
-                    totalCoins += stack.getCount();
-                }
-            }
-            if (totalCoins == 0) {
-                sp.sendMessage(Text.literal("§7No bills to deposit. Hold Dollar Bills and sneak+right-click to deposit."), true);
-                return ActionResult.SUCCESS;
-            }
-            // Clear all bill stacks
-            for (int i = 0; i < player.getInventory().size(); i++) {
-                ItemStack stack = player.getInventory().getStack(i);
-                if (!stack.isEmpty() && stack.getItem() instanceof DollarBillItem) {
+                    totalDeposit += stack.getCount();
                     player.getInventory().setStack(i, ItemStack.EMPTY);
                 }
             }
             var ps = MarketPersistentState.getOrCreate(world.getServer().getOverworld());
             var portfolio = ps.getPortfolio(player.getUuid());
-            portfolio.addCoins(totalCoins);
+            portfolio.addBalance(totalDeposit);
             ps.markDirty();
             sp.sendMessage(Text.literal(String.format(
-                    "§aDeposited §e%d¢ §7into your account. Balance: §e%.1f¢", totalCoins, portfolio.getCoinBalance())), true);
+                    "§aDeposited §e%d¢ §ainto your account. Balance: §e%.1f¢", totalDeposit, portfolio.getBalance())), false);
             return ActionResult.SUCCESS;
         }
 

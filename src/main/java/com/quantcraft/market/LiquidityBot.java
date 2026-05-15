@@ -5,7 +5,7 @@ import java.util.UUID;
 
 public class LiquidityBot {
     private final String ticker;
-    private double coinReserve;
+    private double cashReserve;
     private int    shareReserve;
     private double targetPriceMid;
     private double spreadPct    = 0.04;
@@ -21,7 +21,7 @@ public class LiquidityBot {
         this.ticker        = ticker;
         this.targetPriceMid = initialPrice;
         this.shareReserve  = initialShares;
-        this.coinReserve   = initialPrice * initialShares * 2.0;
+        this.cashReserve   = initialPrice * initialShares * 2.0;
     }
 
     public void tick(StockState state, StockDefinition def) {
@@ -31,24 +31,24 @@ public class LiquidityBot {
         double    price = state.getCurrentPrice();
         for (LimitOrder o : book.getAll()) {
             if (!o.getPlayerUuid().equals(BOT_UUID)) continue;
-            if (o.getSide() == LimitOrder.Side.BUY)  coinReserve  += o.getLimitPrice() * o.getRemainingQty();
+            if (o.getSide() == LimitOrder.Side.BUY)  cashReserve  += o.getLimitPrice() * o.getRemainingQty();
             else                                      shareReserve += o.getRemainingQty();
         }
         book.cancelAllForPlayer(BOT_UUID);
 
         double base = def.basePrice();
-        targetPriceMid = targetPriceMid + (base - targetPriceMid) * def.meanReversionStrength() * 0.15
-                + (random.nextGaussian() * def.volatility() * 0.02 * price)
-                + (random.nextGaussian() * base * 0.008);
-        targetPriceMid = Math.max(base * 0.3, Math.min(base * 2.5, targetPriceMid));
+        targetPriceMid = targetPriceMid + (base - targetPriceMid) * def.meanReversionStrength() * 0.02
+                + (random.nextGaussian() * def.volatility() * 0.005 * price)
+                + (random.nextGaussian() * base * 0.002);
+        targetPriceMid = Math.max(base * 0.3, Math.min(base * 3.0, targetPriceMid));
 
         double spread = Math.max(0.5, price * spreadPct);
         for (int i = 1; i <= ordersPerSide; i++) {
             double bid = Math.max(1.0, targetPriceMid - spread * i);
             double ask = targetPriceMid + spread * i;
-            if (coinReserve >= bid * orderSize) {
+            if (cashReserve >= bid * orderSize) {
                 book.addOrder(new LimitOrder(BOT_UUID, ticker, LimitOrder.Side.BUY,  orderSize, bid, 0));
-                coinReserve -= bid * orderSize;
+                cashReserve -= bid * orderSize;
             }
             if (shareReserve >= orderSize) {
                 book.addOrder(new LimitOrder(BOT_UUID, ticker, LimitOrder.Side.SELL, orderSize, ask, 0));
@@ -59,22 +59,22 @@ public class LiquidityBot {
 
     public void onOrderFilled(LimitOrder order, double fillPrice) {
         if (order.getSide() == LimitOrder.Side.BUY) {
-            coinReserve  -= fillPrice * order.getFilledQty();
+            cashReserve  -= fillPrice * order.getFilledQty();
             shareReserve += order.getFilledQty();
         } else {
-            coinReserve  += fillPrice * order.getFilledQty();
+            cashReserve  += fillPrice * order.getFilledQty();
             shareReserve -= order.getFilledQty();
         }
-        coinReserve  = Math.max(0, coinReserve);
+        cashReserve  = Math.max(0, cashReserve);
         shareReserve = Math.max(0, shareReserve);
     }
 
     public static UUID getBotUuid()           { return BOT_UUID; }
     public boolean     isEnabled()            { return enabled; }
     public void        setEnabled(boolean v)  { enabled = v; }
-    public double      getCoinReserve()       { return coinReserve; }
+    public double      getCashReserve()       { return cashReserve; }
     public int         getShareReserve()      { return shareReserve; }
-    public void        setCoinReserve(double v){ coinReserve = v; }
+    public void        setCashReserve(double v){ cashReserve = v; }
     public void        setShareReserve(int v) { shareReserve = v; }
     public double      getTargetPriceMid()    { return targetPriceMid; }
     public void        setTargetPriceMid(double v){ targetPriceMid = v; }

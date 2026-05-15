@@ -2,9 +2,12 @@ package com.quantcraft.screen;
 
 import com.quantcraft.QuantCraftMod;
 import com.quantcraft.market.*;
+import com.quantcraft.network.ModPackets;
 import com.quantcraft.persistence.MarketPersistentState;
+import com.quantcraft.registry.ModItems;
 import com.quantcraft.registry.ModScreenHandlerTypes;
 import net.minecraft.entity.player.*;
+import net.minecraft.item.ItemStack;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.screen.*;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -29,7 +32,7 @@ public class TradingPostScreenHandler extends ScreenHandler {
             double currentPrice, double pnl, double accruedFee, double marginReserve) {}
 
     public final List<StockDisplayData> stocks        = new ArrayList<>();
-    public double                       playerCoinBalance;
+    public double                       playerBalance;
     public final Map<String,Integer>    playerHoldings = new LinkedHashMap<>();
     public final List<String>           recentNews     = new ArrayList<>();
     public final List<ShortDisplayData> openShorts     = new ArrayList<>();
@@ -69,7 +72,7 @@ public class TradingPostScreenHandler extends ScreenHandler {
                 StockDefinition def   = StockRegistry.get(tk);
                 if (def != null) stocks.add(new StockDisplayData(def, price, chg, hist, candles, total, held));
             }
-            playerCoinBalance = buf.readDouble();
+            playerBalance = buf.readDouble();
             int hc = buf.readInt();
             for (int i = 0; i < hc; i++) playerHoldings.put(buf.readString(), buf.readInt());
             int nc = buf.readInt();
@@ -97,12 +100,45 @@ public class TradingPostScreenHandler extends ScreenHandler {
     public boolean onButtonClick(PlayerEntity player, int id) {
         if (!(player instanceof ServerPlayerEntity sp)) return false;
         if (id < 100) { selectedIndex = id; props.set(0, id); return true; }
+        if (id == 200) {
+            var ps = MarketPersistentState.getOrCreate(sp.getServer().getOverworld());
+            PlayerPortfolio port = ps.getPortfolio(sp.getUuid());
+            int amount = (int) Math.floor(port.getBalance());
+            if (amount <= 0) {
+                sp.sendMessage(Text.literal("§cNo funds to withdraw."), false);
+                return false;
+            }
+            int given = 0;
+            for (int slot = 0; slot < sp.getInventory().size() && given < amount; slot++) {
+                ItemStack existing = sp.getInventory().getStack(slot);
+                if (existing.isEmpty()) {
+                    int stackSize = Math.min(64, amount - given);
+                    sp.getInventory().setStack(slot, new ItemStack(ModItems.DOLLAR_BILL, stackSize));
+                    given += stackSize;
+                } else if (existing.getItem() == ModItems.DOLLAR_BILL && existing.getCount() < 64) {
+                    int add = Math.min(64 - existing.getCount(), amount - given);
+                    existing.increment(add);
+                    given += add;
+                }
+            }
+            if (given == 0) {
+                sp.sendMessage(Text.literal("§cInventory full — no space for dollar bills."), false);
+                return false;
+            }
+            port.deductBalance(given);
+            ps.markDirty();
+            sp.sendMessage(Text.literal(String.format(
+                    "§aWithdrew §e%d¢ §7(%.1f¢ remaining in account).", given, port.getBalance())), false);
+            return true;
+        }
+
         if (!MarketEngine.getInstance().isMarketOpen()) {
             sp.sendMessage(Text.literal("§cThe market is closed. Trading resumes at dawn."), true);
             return false;
         }
-        if (selectedIndex >= stocks.size()) return false;
-        String ticker = stocks.get(selectedIndex).definition().ticker();
+        List<StockDefinition> allStocks = StockRegistry.getAll();
+        if (selectedIndex >= allStocks.size()) return false;
+        String ticker = allStocks.get(selectedIndex).ticker();
         var    ps     = MarketPersistentState.getOrCreate(sp.getServer().getOverworld());
         int    qty    = switch (id) { case 100, 101 -> 1; case 102, 103 -> 64; default -> 1; };
         boolean isBuy = (id == 100 || id == 102);
@@ -114,6 +150,7 @@ public class TradingPostScreenHandler extends ScreenHandler {
         sp.sendMessage(Text.literal(ok
                 ? String.format("§a%s %d %s @ §e%.1f¢", isBuy ? "Bought" : "Sold", qty, ticker, price)
                 : (isBuy ? "§cInsufficient funds or no shares available." : "§cNot enough shares.")), true);
+        if (ok) ModPackets.sendPortfolioToClient(sp);
         return ok;
     }
 

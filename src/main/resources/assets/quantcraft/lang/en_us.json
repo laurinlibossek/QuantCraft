@@ -3,8 +3,8 @@
   "block.quantcraft.commodity_exchange": "Commodity Exchange",
   "block.quantcraft.quotron":            "Quotron Terminal",
   "item.quantcraft.dollar_bill":         "Dollar Bill",
+  "item.quantcraft.sealed_newspaper":    "Sealed Newspaper",
   "item.quantcraft.newspaper_diamond_discovery": "The Overworld Times — Diamond Discovery",
-  "item.quantcraft.newspaper_dragon_slain":      "The Overworld Times — Dragon Slain",
   "item.quantcraft.newspaper_trade_war":         "The Village Gazette — Trade War",
   "item.quantcraft.newspaper_mining_boom":       "The Overworld Times — Mining Boom",
   "item.quantcraft.newspaper_lumber_shortage":   "The Forest Herald — Lumber Shortage",
@@ -15,5 +15,5 @@
   "item.quantcraft.newspaper_emerald_cartel":    "The Village Gazette — Emerald Cartel",
   "container.quantcraft.trading_post":       "Trading Post",
   "container.quantcraft.commodity_exchange": "Commodity Exchange",
-  "itemGroup.quantcraft.quantcraft":         "QuantCraft"
+  "itemGroup.quantcraft":         "QuantCraft"
 }

@@ -2,11 +2,9 @@ package com.quantcraft.network;
 
 import com.quantcraft.QuantCraftMod;
 import com.quantcraft.blockentity.QuotronBlockEntity;
-import com.quantcraft.item.NewspaperEffects;
 import com.quantcraft.item.NewspaperItem;
 import com.quantcraft.market.*;
 import net.fabricmc.fabric.api.networking.v1.*;
-import net.minecraft.item.ItemStack;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -19,10 +17,13 @@ public class ModPackets {
     public static final Identifier S2C_MARKET_UPDATE  = id("market_update");
     public static final Identifier S2C_OPEN_QUOTRON   = id("open_quotron");
     public static final Identifier S2C_OPEN_NEWSPAPER = id("open_newspaper");
+    public static final Identifier S2C_OTC_OFFER      = id("otc_offer");
+    public static final Identifier S2C_PORTFOLIO_DATA = id("portfolio_data");
     // C2S
     public static final Identifier C2S_UPDATE_QUOTRON = id("update_quotron");
     public static final Identifier C2S_NEWSPAPER_READ = id("newspaper_read");
     public static final Identifier C2S_BUTTON_CLICK   = id("button_click");
+    public static final Identifier C2S_OTC_RESPONSE   = id("otc_response");
 
     private static Identifier id(String p) { return new Identifier(QuantCraftMod.MOD_ID, p); }
 
@@ -42,18 +43,7 @@ public class ModPackets {
         });
 
         ServerPlayNetworking.registerGlobalReceiver(C2S_NEWSPAPER_READ, (server, player, handler, buf, resp) -> {
-            buf.readInt(); // client-sent ordinal is ignored; type is read from the actual held item
-            server.execute(() -> {
-                ItemStack main = player.getMainHandStack();
-                ItemStack off  = player.getOffHandStack();
-                NewspaperItem.NewspaperType type = null;
-                ItemStack source = null;
-                if (main.getItem() instanceof NewspaperItem ni) { type = ni.getType(); source = main; }
-                else if (off.getItem() instanceof NewspaperItem ni) { type = ni.getType(); source = off; }
-                if (type == null || source == null) return;
-                NewspaperEffects.apply(type, server, player);
-                source.decrement(1);
-            });
+            buf.readInt();
         });
 
         ServerPlayNetworking.registerGlobalReceiver(C2S_BUTTON_CLICK, (server, player, handler, buf, resp) -> {
@@ -65,24 +55,26 @@ public class ModPackets {
                 }
             });
         });
+
+        ServerPlayNetworking.registerGlobalReceiver(C2S_OTC_RESPONSE, (server, player, handler, buf, resp) -> {
+            String offerId = buf.readString(64);
+            boolean accepted = buf.readBoolean();
+            server.execute(() -> {
+                if (accepted) OtcTradeManager.getInstance().accept(player, offerId, server);
+                else          OtcTradeManager.getInstance().reject(player, offerId);
+            });
+        });
     }
 
     public static void broadcastMarketUpdate(MinecraftServer server, Map<String,StockState> snap) {
-        // Serialize once to bytes, then give each player their own buffer so Netty
-        // doesn't release one player's buffer from under another.
-        PacketByteBuf template = PacketByteBufs.create();
-        template.writeInt(snap.size());
-        for (var e : snap.entrySet()) {
-            template.writeString(e.getKey());
-            template.writeDouble(e.getValue().getCurrentPrice());
-            template.writeDouble(e.getValue().getDailyChangePercent());
-        }
-        byte[] bytes = new byte[template.readableBytes()];
-        template.getBytes(template.readerIndex(), bytes);
-        template.release();
         for (ServerPlayerEntity p : server.getPlayerManager().getPlayerList()) {
             PacketByteBuf buf = PacketByteBufs.create();
-            buf.writeBytes(bytes);
+            buf.writeInt(snap.size());
+            for (var e : snap.entrySet()) {
+                buf.writeString(e.getKey());
+                buf.writeDouble(e.getValue().getCurrentPrice());
+                buf.writeDouble(e.getValue().getDailyChangePercent());
+            }
             ServerPlayNetworking.send(p, S2C_MARKET_UPDATE, buf);
         }
     }
@@ -99,6 +91,9 @@ public class ModPackets {
             buf.writeString(e.getKey());
             buf.writeDouble(e.getValue().getCurrentPrice());
             buf.writeDouble(e.getValue().getDailyChangePercent());
+            List<Double> history = e.getValue().getPriceHistory();
+            buf.writeInt(history.size());
+            for (double h : history) buf.writeDouble(h);
         }
         ServerPlayNetworking.send(player, S2C_OPEN_QUOTRON, buf);
     }
@@ -107,5 +102,32 @@ public class ModPackets {
         PacketByteBuf buf = PacketByteBufs.create();
         buf.writeInt(type.ordinal());
         ServerPlayNetworking.send(player, S2C_OPEN_NEWSPAPER, buf);
+    }
+
+    public static void sendOtcOfferToClient(ServerPlayerEntity target, OtcTradeOffer offer) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeString(offer.getOfferId().toString());
+        buf.writeString(offer.getProposerName());
+        buf.writeString(offer.getTicker());
+        buf.writeInt(offer.getShares());
+        buf.writeDouble(offer.getPricePerShare());
+        ServerPlayNetworking.send(target, S2C_OTC_OFFER, buf);
+    }
+
+    public static void sendPortfolioToClient(ServerPlayerEntity player) {
+        var ps = com.quantcraft.persistence.MarketPersistentState.getOrCreate(
+                player.getServerWorld());
+        PlayerPortfolio port = ps.getPortfolio(player.getUuid());
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeDouble(port.getBalance());
+        Map<String, Integer> holdings = port.getHoldings();
+        Map<String, Double> avgCosts = port.getAvgCosts();
+        buf.writeInt(holdings.size());
+        for (var e : holdings.entrySet()) {
+            buf.writeString(e.getKey());
+            buf.writeInt(e.getValue());
+            buf.writeDouble(avgCosts.getOrDefault(e.getKey(), 0.0));
+        }
+        ServerPlayNetworking.send(player, S2C_PORTFOLIO_DATA, buf);
     }
 }

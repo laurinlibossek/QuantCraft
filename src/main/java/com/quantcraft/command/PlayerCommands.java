@@ -3,12 +3,15 @@ package com.quantcraft.command;
 import com.mojang.brigadier.arguments.*;
 import com.quantcraft.market.*;
 import com.quantcraft.persistence.MarketPersistentState;
+import com.quantcraft.registry.ModBlocks;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.*;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.World;
 import java.util.*;
 
 import static net.minecraft.server.command.CommandManager.*;
@@ -25,16 +28,6 @@ public class PlayerCommands {
                     .executes(ctx -> prices(ctx.getSource(), null))
                     .then(argument("sector", StringArgumentType.word())
                         .executes(ctx -> prices(ctx.getSource(), StringArgumentType.getString(ctx, "sector")))))
-                .then(literal("buy").then(argument("ticker", StringArgumentType.word())
-                    .then(argument("qty", IntegerArgumentType.integer(1))
-                        .executes(ctx -> trade(ctx.getSource(),
-                            StringArgumentType.getString(ctx, "ticker"),
-                            IntegerArgumentType.getInteger(ctx, "qty"), true)))))
-                .then(literal("sell").then(argument("ticker", StringArgumentType.word())
-                    .then(argument("qty", IntegerArgumentType.integer(1))
-                        .executes(ctx -> trade(ctx.getSource(),
-                            StringArgumentType.getString(ctx, "ticker"),
-                            IntegerArgumentType.getInteger(ctx, "qty"), false)))))
                 .then(literal("limitbuy").then(argument("ticker", StringArgumentType.word())
                     .then(argument("qty", IntegerArgumentType.integer(1))
                         .then(argument("price", DoubleArgumentType.doubleArg(0))
@@ -80,6 +73,16 @@ public class PlayerCommands {
                     .executes(ctx -> coverShort(ctx.getSource(),
                         StringArgumentType.getString(ctx, "ticker")))))
                 .then(literal("shorts").executes(ctx -> listShorts(ctx.getSource())))
+                .then(literal("offer").then(argument("target", EntityArgumentType.player())
+                    .then(argument("ticker", StringArgumentType.word())
+                        .then(argument("shares", IntegerArgumentType.integer(1))
+                            .then(argument("price", DoubleArgumentType.doubleArg(0.01))
+                                .executes(ctx -> offer(ctx.getSource(),
+                                    EntityArgumentType.getPlayer(ctx, "target"),
+                                    StringArgumentType.getString(ctx, "ticker"),
+                                    IntegerArgumentType.getInteger(ctx, "shares"),
+                                    DoubleArgumentType.getDouble(ctx, "price"))))))))
+                .then(literal("pnl").executes(ctx -> sendPortfolio(ctx.getSource())))
             )
         );
     }
@@ -87,8 +90,8 @@ public class PlayerCommands {
     private static int balance(ServerCommandSource src) {
         if (!(src.getEntity() instanceof ServerPlayerEntity p)) return 0;
         var    ps  = MarketPersistentState.getOrCreate(src.getServer().getOverworld());
-        double bal = ps.getPortfolio(p.getUuid()).getCoinBalance();
-        src.sendFeedback(() -> Text.literal(String.format("§eCoin balance: §f%.1f¢", bal)), false);
+        double bal = ps.getPortfolio(p.getUuid()).getBalance();
+        src.sendFeedback(() -> Text.literal(String.format("§eBalance: §f%.1f¢", bal)), false);
         return 1;
     }
 
@@ -98,7 +101,7 @@ public class PlayerCommands {
         var port = ps.getPortfolio(p.getUuid());
         var snap = MarketEngine.getInstance().getSnapshot();
         src.sendFeedback(() -> Text.literal("§6=== Your Portfolio ==="), false);
-        src.sendFeedback(() -> Text.literal(String.format("§eCash: §f%.1f¢", port.getCoinBalance())), false);
+        src.sendFeedback(() -> Text.literal(String.format("§eCash: §f%.1f¢", port.getBalance())), false);
         if (port.getHoldings().isEmpty()) {
             src.sendFeedback(() -> Text.literal("§7No holdings."), false);
         } else {
@@ -128,44 +131,46 @@ public class PlayerCommands {
     }
 
     private static int prices(ServerCommandSource src, String sectorFilter) {
-        MarketSector filter = null;
+        final MarketSector filter;
         if (sectorFilter != null) {
             try { filter = MarketSector.valueOf(sectorFilter.toUpperCase()); }
             catch (IllegalArgumentException e) { src.sendError(Text.literal("Unknown sector: " + sectorFilter)); return 0; }
+        } else {
+            filter = null;
         }
-        final MarketSector ff = filter;
-        src.sendFeedback(() -> Text.literal(ff == null ? "§6=== All Stocks ===" : "§6=== " + ff + " ==="), false);
+        String header = filter == null ? "§6=== All Stocks ===" : "§6=== " + filter + " ===";
+        src.sendFeedback(() -> Text.literal(header), false);
         for (StockDefinition d : StockRegistry.getAll()) {
-            if (ff != null && d.sector() != ff) continue;
+            if (filter != null && d.sector() != filter) continue;
             StockState ss = MarketEngine.getInstance().getState(d.ticker());
             if (ss == null) continue;
-            double pct = ss.getDailyChangePercent();
-            String col = pct >= 0 ? "§a" : "§c";
-            src.sendFeedback(() -> Text.literal(String.format("  §f%-6s §7%-14s §f%8.1f¢ %s%+.2f%%",
-                    d.ticker(), d.displayName(), ss.getCurrentPrice(), col, pct)), false);
+            double pct   = ss.getDailyChangePercent();
+            String col   = pct >= 0 ? "§a" : "§c";
+            String line  = String.format("  §f%-6s §7%-14s §f%8.1f¢ %s%+.2f%%",
+                    d.ticker(), d.displayName(), ss.getCurrentPrice(), col, pct);
+            src.sendFeedback(() -> Text.literal(line), false);
         }
         return 1;
     }
 
-    private static int trade(ServerCommandSource src, String ticker, int qty, boolean isBuy) {
-        if (!(src.getEntity() instanceof ServerPlayerEntity p)) return 0;
-        if (!MarketEngine.getInstance().isMarketOpen()) {
-            src.sendError(Text.literal("§cThe market is closed. Trading resumes at dawn.")); return 0;
-        }
-        String t  = ticker.toUpperCase();
-        var    ps = MarketPersistentState.getOrCreate(src.getServer().getOverworld());
-        boolean ok = isBuy
-                ? MarketEngine.getInstance().executeMarketBuy(t, qty, p.getUuid(), ps)
-                : MarketEngine.getInstance().executeMarketSell(t, qty, p.getUuid(), ps);
-        StockState ss    = MarketEngine.getInstance().getState(t);
-        double     price = ss != null ? ss.getCurrentPrice() : 0;
-        if (ok) src.sendFeedback(() -> Text.literal(String.format("§a%s %d %s @ §e%.1f¢", isBuy ? "Bought" : "Sold", qty, t, price)), false);
-        else    src.sendError(Text.literal(isBuy ? "Insufficient funds or no shares available." : "You don't own enough shares."));
-        return ok ? 1 : 0;
+    private static final int TRADING_POST_RANGE = 8;
+
+    /** Returns true if the player is within range of a Trading Post, sending an error message if not. */
+    private static boolean nearTradingPost(ServerPlayerEntity p, ServerCommandSource src) {
+        World world = p.getWorld();
+        BlockPos center = p.getBlockPos();
+        for (int dx = -TRADING_POST_RANGE; dx <= TRADING_POST_RANGE; dx++)
+            for (int dy = -3; dy <= 3; dy++)
+                for (int dz = -TRADING_POST_RANGE; dz <= TRADING_POST_RANGE; dz++)
+                    if (world.getBlockState(center.add(dx, dy, dz)).getBlock() == ModBlocks.TRADING_POST)
+                        return true;
+        src.sendError(Text.literal("§cYou must be near a Trading Post to do that."));
+        return false;
     }
 
     private static int limitOrder(ServerCommandSource src, String ticker, int qty, double limitPrice, LimitOrder.Side side) {
         if (!(src.getEntity() instanceof ServerPlayerEntity p)) return 0;
+        if (!nearTradingPost(p, src)) return 0;
         if (!MarketEngine.getInstance().isMarketOpen()) {
             src.sendError(Text.literal("§cThe market is closed. Trading resumes at dawn.")); return 0;
         }
@@ -175,11 +180,11 @@ public class PlayerCommands {
         var port = ps.getPortfolio(p.getUuid());
         if (side == LimitOrder.Side.BUY) {
             double cost = limitPrice * qty;
-            if (port.getCoinBalance() < cost) {
-                src.sendError(Text.literal(String.format("Need §e%.1f¢§c, have §e%.1f¢", cost, port.getCoinBalance())));
+            if (port.getBalance() < cost) {
+                src.sendError(Text.literal(String.format("Need §e%.1f¢§c, have §e%.1f¢", cost, port.getBalance())));
                 return 0;
             }
-            port.deductCoins(cost); ps.markDirty();
+            port.deductBalance(cost); ps.markDirty();
         } else {
             if (port.getHolding(t) < qty) { src.sendError(Text.literal("You don't own " + qty + " shares of " + t)); return 0; }
             port.removeShares(t, qty); ps.markDirty();
@@ -215,6 +220,7 @@ public class PlayerCommands {
 
     private static int cancelOrder(ServerCommandSource src, String ticker, String idStr) {
         if (!(src.getEntity() instanceof ServerPlayerEntity p)) return 0;
+        if (!nearTradingPost(p, src)) return 0;
         String     t  = ticker.toUpperCase();
         StockState ss = MarketEngine.getInstance().getState(t);
         if (ss == null) { src.sendError(Text.literal("Unknown ticker.")); return 0; }
@@ -225,7 +231,7 @@ public class PlayerCommands {
         LimitOrder o = found.get();
         var ps = MarketPersistentState.getOrCreate(src.getServer().getOverworld());
         if (o.getSide() == LimitOrder.Side.BUY) {
-            ps.getPortfolio(p.getUuid()).addCoins(o.getLimitPrice() * o.getRemainingQty());
+            ps.getPortfolio(p.getUuid()).addBalance(o.getLimitPrice() * o.getRemainingQty());
         } else {
             ps.getPortfolio(p.getUuid()).addShares(o.getTicker(), o.getRemainingQty());
         }
@@ -255,8 +261,8 @@ public class PlayerCommands {
         var ps   = MarketPersistentState.getOrCreate(src.getServer().getOverworld());
         var from = ps.getPortfolio(payer.getUuid());
         var to   = ps.getPortfolio(target.getUuid());
-        if (from.getCoinBalance() < amount) { src.sendError(Text.literal("Insufficient balance.")); return 0; }
-        from.deductCoins(amount); to.addCoins(amount); ps.markDirty();
+        if (from.getBalance() < amount) { src.sendError(Text.literal("Insufficient balance.")); return 0; }
+        from.deductBalance(amount); to.addBalance(amount); ps.markDirty();
         payer.sendMessage(Text.literal(String.format("§aPaid §e%.1f¢§a to §f%s", amount, target.getName().getString())));
         target.sendMessage(Text.literal(String.format("§aReceived §e%.1f¢§a from §f%s", amount, payer.getName().getString())));
         return 1;
@@ -304,6 +310,7 @@ public class PlayerCommands {
 
     private static int openShort(ServerCommandSource src, String ticker, int qty) {
         if (!(src.getEntity() instanceof ServerPlayerEntity p)) return 0;
+        if (!nearTradingPost(p, src)) return 0;
         if (!MarketEngine.getInstance().isMarketOpen()) {
             src.sendError(Text.literal("§cThe market is closed. Trading resumes at dawn.")); return 0;
         }
@@ -323,12 +330,12 @@ public class PlayerCommands {
         double price  = ss.getCurrentPrice();
         double margin = price * qty * 0.5;
         var port = ps.getPortfolio(p.getUuid());
-        if (port.getCoinBalance() < margin) {
-            src.sendError(Text.literal(String.format("§cNeed §e%.1f¢§c margin, have §e%.1f¢", margin, port.getCoinBalance())));
+        if (port.getBalance() < margin) {
+            src.sendError(Text.literal(String.format("§cNeed §e%.1f¢§c margin, have §e%.1f¢", margin, port.getBalance())));
             return 0;
         }
-        port.deductCoins(margin);
-        port.addCoins(price * qty);          // proceeds from the borrowed-share sale
+        port.deductBalance(margin);
+        port.addBalance(price * qty);          // proceeds from the borrowed-share sale
         bot.setShareReserve(bot.getShareReserve() - qty);
         ss.adjustSharesHeld(+qty);           // shares enter the float (sold to market)
         ShortPosition sp = new ShortPosition(p.getUuid(), t, qty, price, margin, src.getServer().getTicks());
@@ -342,6 +349,7 @@ public class PlayerCommands {
 
     private static int coverShort(ServerCommandSource src, String ticker) {
         if (!(src.getEntity() instanceof ServerPlayerEntity p)) return 0;
+        if (!nearTradingPost(p, src)) return 0;
         if (!MarketEngine.getInstance().isMarketOpen()) {
             src.sendError(Text.literal("§cThe market is closed. Trading resumes at dawn.")); return 0;
         }
@@ -359,16 +367,16 @@ public class PlayerCommands {
         double pnl     = sp.getCurrentPnL(price);
         double buyback = price * sp.getShares();
         var port = ps.getPortfolio(p.getUuid());
-        if (port.getCoinBalance() < buyback) {
+        if (port.getBalance() < buyback) {
             src.sendError(Text.literal(String.format(
                     "§cInsufficient funds to cover. You need §e%.1f¢§c but have §e%.1f¢§c. §7Sell assets or wait for a margin call.",
-                    buyback, port.getCoinBalance())));
+                    buyback, port.getBalance())));
             return 0;
         }
-        port.deductCoins(buyback);
+        port.deductBalance(buyback);
         double fee            = sp.getAccruedFee();
         double marginReturned = Math.max(0, sp.getMarginReserve() - fee);
-        port.addCoins(marginReturned);
+        port.addBalance(marginReturned);
         if (bot != null) bot.setShareReserve(bot.getShareReserve() + sp.getShares());
         ss.adjustSharesHeld(-sp.getShares());
         ps.removeShort(p.getUuid(), sp);
@@ -398,6 +406,20 @@ public class PlayerCommands {
                     sp.getTicker(), sp.getShares(), sp.getOpenPrice(), cur,
                     pnl >= 0 ? "§a+" : "§c", pnl, sp.getAccruedFee(), room)), false);
         }
+        return 1;
+    }
+
+    private static int offer(ServerCommandSource src, ServerPlayerEntity target, String ticker, int shares, double price) {
+        if (!(src.getEntity() instanceof ServerPlayerEntity proposer)) return 0;
+        String t = ticker.toUpperCase();
+        String err = OtcTradeManager.getInstance().propose(proposer, target, t, shares, price, src.getServer());
+        if (err != null) { src.sendError(Text.literal(err)); return 0; }
+        return 1;
+    }
+
+    private static int sendPortfolio(ServerCommandSource src) {
+        if (!(src.getEntity() instanceof ServerPlayerEntity p)) return 0;
+        com.quantcraft.network.ModPackets.sendPortfolioToClient(p);
         return 1;
     }
 

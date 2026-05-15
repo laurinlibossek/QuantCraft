@@ -45,24 +45,29 @@ public class QuotronScreen extends Screen {
     /** Scroll offset in rows for the right panel. */
     private int rightScroll = 0;
 
-    /** Coin balance injected when the screen was opened (best-effort; may be 0). */
-    private final double coinBalance;
+    /** Balance injected when the screen was opened (best-effort; may be 0). */
+    private final double balance;
 
     public QuotronScreen(List<String> tracked, Map<String,Double> prices,
-                         Map<String,Double> changes, BlockPos pos, double coinBalance) {
+                         Map<String,Double> changes, BlockPos pos, double balance,
+                         Map<String,List<Double>> histories) {
         super(Text.literal("Quotron Terminal"));
         this.tracked     = new ArrayList<>(tracked);
         this.prices      = prices;
         this.changes     = changes;
         this.blockPos    = pos;
-        this.coinBalance = coinBalance;
+        this.balance = balance;
         this.allStocks   = StockRegistry.getAll();
     }
 
-    // Legacy constructor for callers that don't yet pass coinBalance
+    public QuotronScreen(List<String> tracked, Map<String,Double> prices,
+                         Map<String,Double> changes, BlockPos pos, double balance) {
+        this(tracked, prices, changes, pos, balance, null);
+    }
+
     public QuotronScreen(List<String> tracked, Map<String,Double> prices,
                          Map<String,Double> changes, BlockPos pos) {
-        this(tracked, prices, changes, pos, 0.0);
+        this(tracked, prices, changes, pos, 0.0, null);
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
@@ -84,19 +89,11 @@ public class QuotronScreen extends Screen {
     public void render(DrawContext ctx, int mx, int my, float delta) {
         int ox = ox(), oy = oy();
 
-        // Panel background only — no full-screen overlay
         ctx.fill(ox, oy, ox + W, oy + H, BG);
-
-        // ── Left panel ────────────────────────────────────────────────────────
         drawLeftPanel(ctx, ox, oy, mx, my);
-
-        // ── Vertical divider ──────────────────────────────────────────────────
         ctx.fill(ox + DIVIDER_X, oy, ox + DIVIDER_X + 1, oy + H, DIVIDER);
-
-        // ── Right panel ───────────────────────────────────────────────────────
         drawRightPanel(ctx, ox, oy, mx, my);
 
-        // Render child widgets (buttons etc.) but skip renderBackground
         super.render(ctx, mx, my, delta);
     }
 
@@ -104,9 +101,9 @@ public class QuotronScreen extends Screen {
         // Header bar
         ctx.fill(ox, oy, ox + DIVIDER_X, oy + HEADER_H, HDR_BG);
         ctx.drawText(textRenderer, "§6MY WATCHLIST", ox + 6, oy + 5, GOLD, false);
-        if (coinBalance > 0) {
+        if (balance > 0) {
             ctx.drawText(textRenderer,
-                    String.format("§7%.1f¢", coinBalance),
+                    String.format("§7%.1f¢", balance),
                     ox + 6, oy + 15, MUTED, false);
         }
 
