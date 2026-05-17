@@ -13,6 +13,6 @@ public class DollarBillItem extends Item {
     @Override
     public void appendTooltip(ItemStack stack, World world, List<Text> tooltip, TooltipContext ctx) {
         tooltip.add(Text.literal("Currency of the QuantCraft Exchange").formatted(Formatting.GOLD));
-        tooltip.add(Text.literal("Hold and right-click a Trading Post to deposit.").formatted(Formatting.DARK_GRAY));
+        tooltip.add(Text.literal("Right-click a Trading Post to deposit.").formatted(Formatting.DARK_GRAY));
     }
 }
