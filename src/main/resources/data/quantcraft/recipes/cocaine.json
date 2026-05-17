@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {"item": "quantcraft:dollar_bill"},
+    {"item": "quantcraft:dollar_bill"},
+    {"item": "quantcraft:dollar_bill"},
+    {"item": "quantcraft:dollar_bill"},
+    {"item": "quantcraft:dollar_bill"},
+    {"item": "minecraft:sugar"},
+    {"item": "minecraft:sugar"},
+    {"item": "minecraft:sugar"},
+    {"item": "minecraft:sugar"}
+  ],
+  "result": {"item": "quantcraft:cocaine", "count": 4}
+}
