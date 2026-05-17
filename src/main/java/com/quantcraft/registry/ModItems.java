@@ -1,6 +1,7 @@
 package com.quantcraft.registry;
 
 import com.quantcraft.QuantCraftMod;
+import com.quantcraft.item.CocaineItem;
 import com.quantcraft.item.DollarBillItem;
 import com.quantcraft.item.NewspaperItem;
 import com.quantcraft.item.SealedNewspaperItem;
@@ -46,6 +47,7 @@ public class ModItems {
     public static final Item NP_ARCANE_ANOMALY    = new NewspaperItem(NewspaperItem.NewspaperType.ARCANE_ANOMALY,    new Item.Settings());
     public static final Item NP_LIVESTOCK_PLAGUE  = new NewspaperItem(NewspaperItem.NewspaperType.LIVESTOCK_PLAGUE,  new Item.Settings());
     public static final Item NP_EMERALD_CARTEL    = new NewspaperItem(NewspaperItem.NewspaperType.EMERALD_CARTEL,    new Item.Settings());
+    public static final Item COCAINE = new CocaineItem();
 
     public static void register() {
         reg("dollar_bill",                  DOLLAR_BILL);
@@ -62,6 +64,7 @@ public class ModItems {
         reg("newspaper_arcane_anomaly",     NP_ARCANE_ANOMALY);
         reg("newspaper_livestock_plague",   NP_LIVESTOCK_PLAGUE);
         reg("newspaper_emerald_cartel",     NP_EMERALD_CARTEL);
+        reg("cocaine", COCAINE);
     }
 
     private static void reg(String p, Item i) {

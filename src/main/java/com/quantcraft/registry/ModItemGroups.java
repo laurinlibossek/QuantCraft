@@ -26,6 +26,7 @@ public class ModItemGroups {
                 entries.add(ModItems.NP_ARCANE_ANOMALY);
                 entries.add(ModItems.NP_LIVESTOCK_PLAGUE);
                 entries.add(ModItems.NP_EMERALD_CARTEL);
+                entries.add(ModItems.COCAINE);
             })
             .build();
 
