@@ -9,6 +9,7 @@ import com.quantcraft.market.StockRegistry;
 import com.quantcraft.persistence.MarketPersistentState;
 import com.quantcraft.network.ModPackets;
 import com.quantcraft.registry.*;
+import com.quantcraft.registry.ModEffects;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents;
@@ -32,6 +33,7 @@ public class QuantCraftMod implements ModInitializer {
     public void onInitialize() {
         QuantCraftConfig.load();
         StockRegistry.initialize();
+        ModEffects.register();
         ModItems.register();
         ModBlocks.register();
         ModItemGroups.register();
