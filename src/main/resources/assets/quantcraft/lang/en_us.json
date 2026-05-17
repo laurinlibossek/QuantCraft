@@ -15,5 +15,6 @@
   "item.quantcraft.newspaper_emerald_cartel":    "The Village Gazette — Emerald Cartel",
   "container.quantcraft.trading_post":       "Trading Post",
   "container.quantcraft.commodity_exchange": "Commodity Exchange",
-  "itemGroup.quantcraft":         "QuantCraft"
+  "itemGroup.quantcraft":         "QuantCraft",
+  "item.quantcraft.cocaine":      "Cocaine"
 }
