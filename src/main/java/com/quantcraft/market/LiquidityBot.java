@@ -58,15 +58,13 @@ public class LiquidityBot {
     }
 
     public void onOrderFilled(LimitOrder order, double fillPrice) {
+        // Cash/shares were already reserved in tick() when the order was placed.
+        // On fill we only record the conversion (reserved asset → acquired asset).
         if (order.getSide() == LimitOrder.Side.BUY) {
-            cashReserve  -= fillPrice * order.getFilledQty();
             shareReserve += order.getFilledQty();
         } else {
-            cashReserve  += fillPrice * order.getFilledQty();
-            shareReserve -= order.getFilledQty();
+            cashReserve += fillPrice * order.getFilledQty();
         }
-        cashReserve  = Math.max(0, cashReserve);
-        shareReserve = Math.max(0, shareReserve);
     }
 
     public static UUID getBotUuid()           { return BOT_UUID; }
