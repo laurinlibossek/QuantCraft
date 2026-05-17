@@ -29,6 +29,7 @@ public class CommodityMarket {
         if (!player.getInventory().insertStack(items)) return false;
         portfolio.deductBalance(cost);
         ss.applyEventPressure(+qty * def.basePrice() / def.totalShares() * 2.0);
+        ss.applySupplyPressure(+qty * def.basePrice() / 500.0);
         ps.markDirty();
         return true;
     }
@@ -67,6 +68,7 @@ public class CommodityMarket {
 
         removeItems(player, def, effectiveQty);
         ss.applyEventPressure(-effectiveQty * def.basePrice() / def.totalShares() * 2.0);
+        ss.applySupplyPressure(-effectiveQty * def.basePrice() / 500.0);
         ps.getPortfolio(player.getUuid()).addBalance(netGain);
         ps.addDailyExchangeEarnings(player.getUuid(), grossGain);
         player.sendMessage(Text.literal(String.format("§aSold %d %s for §e%.1f¢ §7(5%% tax)", effectiveQty, ticker, netGain)), true);

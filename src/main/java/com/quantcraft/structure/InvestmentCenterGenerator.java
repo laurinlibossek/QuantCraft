@@ -35,7 +35,7 @@ public class InvestmentCenterGenerator extends Structure {
             BlockRotation rotation = BlockRotation.random(context.random());
             StructureTemplateManager manager = context.structureTemplateManager();
 
-            collector.addPiece(new InvestmentCenterPiece(manager, new BlockPos(x, y - 1, z), rotation));
+            collector.addPiece(new InvestmentCenterPiece(manager, new BlockPos(x, y, z), rotation));
         });
     }
 

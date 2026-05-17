@@ -40,6 +40,7 @@ public class QuantCraftConfig {
     public static boolean isEventPressureEnabled()         { return data.eventPressureEnabled; }
     public static boolean isMarketNewsEnabled()            { return data.marketNewsEnabled; }
     public static double  getTaxRate()                     { return data.taxRate; }
+    public static boolean isCocaineCraftingEnabled()       { return data.cocaineCraftingEnabled; }
 
     // Setters
     public static void setStartingBalance(int v)                 { data.startingBalance = v; }
@@ -48,6 +49,7 @@ public class QuantCraftConfig {
     public static void setEventPressureEnabled(boolean v)        { data.eventPressureEnabled = v; }
     public static void setMarketNewsEnabled(boolean v)           { data.marketNewsEnabled = v; }
     public static void setTaxRate(double v)                      { data.taxRate = v; }
+    public static void setCocaineCraftingEnabled(boolean v)      { data.cocaineCraftingEnabled = v; }
 
     private static class ConfigData {
         int     startingBalance           = 0;
@@ -56,5 +58,6 @@ public class QuantCraftConfig {
         boolean eventPressureEnabled      = true;
         boolean marketNewsEnabled         = true;
         double  taxRate                   = 0.02;
+        boolean cocaineCraftingEnabled    = true;
     }
 }

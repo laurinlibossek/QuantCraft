@@ -10,6 +10,7 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 
 import java.util.*;
+import java.util.EnumMap;
 
 public class MarketEngine {
     private static final MarketEngine INSTANCE = new MarketEngine();
@@ -78,6 +79,7 @@ public class MarketEngine {
         if (frozen) return;
         marketTickCount++;
         MarketEventListener.resetEventCounts();
+        sectorEventCounts.clear();
         ps.checkDailyReset();
         tickSimulated(server);
         processShortPositions(server, ps);
@@ -135,11 +137,12 @@ public class MarketEngine {
             if (bot != null) bot.tick(state, def);
 
             double eventPressure = state.consumeEventPressure();
+            double supplyEffect = state.tickSupplyPressure();
             double sectorMod = computeSectorModifier(def.sector(), isNight, isFullMoon, isThunder, def.basePrice());
 
             float mult = QuantCraftConfig.getGlobalVolatilityMultiplier();
-            if (eventPressure != 0 || sectorMod != 0)
-                state.updatePrice(state.getCurrentPrice() + (eventPressure + sectorMod) * 0.1 * mult);
+            double priceChange = (eventPressure * 0.1 + supplyEffect + sectorMod) * mult;
+            state.updatePrice(state.getCurrentPrice() + priceChange);
 
             double pct = state.getDailyChangePercent();
             if (Math.abs(pct) > 5.0 && QuantCraftConfig.isMarketNewsEnabled())
@@ -333,24 +336,43 @@ public class MarketEngine {
     }
 
     // ── Event system ─────────────────────────────────────────────────────────
+    private final Map<MarketSector, Integer> sectorEventCounts = new EnumMap<>(MarketSector.class);
+    private static final int MAX_SECTOR_EVENTS_PER_TICK = 20;
+
     public void fireEvent(WorldMarketEvent event, String optTicker) {
         if (!QuantCraftConfig.isEventPressureEnabled()) return;
         switch (event) {
-            case PLAYER_MINED_ORE      -> pressureSector(MarketSector.MINING,   -2.5);
-            case PLAYER_MINED_WOOD     -> pressureSector(MarketSector.LUMBER,   -1.5);
-            case PLAYER_HARVESTED_CROP -> pressureSector(MarketSector.AGRARIAN, -1.0);
-            case PLAYER_KILLED_MOB     -> { pressureSector(MarketSector.ARCANE, -1.5); pressureSector(MarketSector.LIVESTOCK, -1.0); }
-            case PLAYER_KILLED_BOSS    -> { pressureSector(MarketSector.ARCANE, -20.0); pushNews("BREAKING: Boss slain — Arcane sector in freefall!"); }
-            case PLAYER_ENTERED_NETHER -> pressureSector(MarketSector.ARCANE,   -3.0);
-            case RAID_OCCURRED         -> { pressureSector(MarketSector.AGRARIAN, -12.0); pressureSector(MarketSector.MANUFACTURED, +8.0); pushNews("Raid! Agrarian crashes, Manufacturing surges."); }
-            case THUNDER_STORM         -> { pressureSector(MarketSector.MINING, +2.5); pressureSector(MarketSector.LUMBER, +1.5); }
-            case CLEAR_WEATHER         -> pressureAll(+0.5);
-            case FULL_MOON             -> pressureSector(MarketSector.ARCANE,   -5.0);
-            case PLAYER_BOUGHT_STOCK   -> { if (optTicker != null) pressureTicker(optTicker, +2.0); }
-            case PLAYER_SOLD_STOCK     -> { if (optTicker != null) pressureTicker(optTicker, -2.0); }
+            // Supply-side: player adds supply → price drops (educational: supply up = price down)
+            case PLAYER_MINED_ORE      -> pressureSectorCapped(MarketSector.MINING,   -1.5);
+            case PLAYER_MINED_WOOD     -> pressureSectorCapped(MarketSector.LUMBER,   -1.0);
+            case PLAYER_HARVESTED_CROP -> pressureSectorCapped(MarketSector.AGRARIAN, -0.8);
+            // Mob kills: supply of mob drops increases → Livestock down, Arcane reagent demand up
+            case PLAYER_KILLED_MOB     -> { pressureSectorCapped(MarketSector.ARCANE, +0.5); pressureSectorCapped(MarketSector.LIVESTOCK, -0.5); }
+            // Rare events: meaningful but not market-breaking
+            case PLAYER_KILLED_BOSS    -> { pressureSector(MarketSector.ARCANE, +8.0); pressureSector(MarketSector.MINING, +3.0); pushNews("BREAKING: Boss slain — Arcane demand surges!"); }
+            case PLAYER_ENTERED_NETHER -> { pressureSector(MarketSector.ARCANE, +2.0); pressureSector(MarketSector.MINING, +1.0); }
+            // Weather & world events: moderate, spread across sectors
+            case RAID_OCCURRED         -> { pressureSector(MarketSector.AGRARIAN, -5.0); pressureSector(MarketSector.MANUFACTURED, +4.0); pressureSector(MarketSector.LIVESTOCK, -2.0); pushNews("Raid! Agrarian drops, Manufacturing surges."); }
+            case THUNDER_STORM         -> { pressureSector(MarketSector.MINING, +2.0); pressureSector(MarketSector.LUMBER, +1.5); pressureSector(MarketSector.ARCANE, +1.5); pressureSector(MarketSector.AGRARIAN, -1.0); }
+            case CLEAR_WEATHER         -> { pressureSector(MarketSector.AGRARIAN, +2.0); pressureSector(MarketSector.LIVESTOCK, +1.5); pressureSector(MarketSector.LUMBER, +1.0); }
+            case FULL_MOON             -> { pressureSector(MarketSector.ARCANE, +4.0); pressureSector(MarketSector.LIVESTOCK, -1.0); pushNews("Full moon rises — Arcane markets stir."); }
+            // Player trading signals demand
+            case PLAYER_BOUGHT_STOCK   -> { if (optTicker != null) pressureTicker(optTicker, +1.5); }
+            case PLAYER_SOLD_STOCK     -> { if (optTicker != null) pressureTicker(optTicker, -1.5); }
+            // Admin overrides
             case ADMIN_SECTOR_CRASH    -> { if (optTicker != null) try { pressureSector(MarketSector.valueOf(optTicker), -50.0); } catch (Exception ignored) {} }
             case ADMIN_SECTOR_BOOM     -> { if (optTicker != null) try { pressureSector(MarketSector.valueOf(optTicker), +50.0); } catch (Exception ignored) {} }
         }
+    }
+
+    public void resetEventCounts() { sectorEventCounts.clear(); }
+
+    private void pressureSectorCapped(MarketSector sector, double delta) {
+        int count = sectorEventCounts.getOrDefault(sector, 0);
+        if (count >= MAX_SECTOR_EVENTS_PER_TICK) return;
+        sectorEventCounts.put(sector, count + 1);
+        double scale = 1.0 - (count / (double) MAX_SECTOR_EVENTS_PER_TICK) * 0.7;
+        pressureSector(sector, delta * scale);
     }
 
     private void pressureSector(MarketSector sector, double delta) {
@@ -360,13 +382,21 @@ public class MarketEngine {
     private void pressureTicker(String ticker, double delta) { StockState s = states.get(ticker); if (s != null) s.applyEventPressure(delta); }
     private void pressureAll(double delta)                   { states.values().forEach(s -> s.applyEventPressure(delta)); }
 
+    private final Random sectorRng = new Random();
+
     private double computeSectorModifier(MarketSector sec, boolean night, boolean full, boolean thunder, double base) {
-        return switch (sec) {
-            case ARCANE   -> (night ? base * 0.008 : 0) + (full ? -base * 0.015 : 0);
-            case MINING   -> thunder ? base * 0.006 : 0;
-            case AGRARIAN -> thunder ? -base * 0.004 : 0;
-            default       -> 0;
+        // Ambient drift: every sector gets mild random momentum each tick
+        double ambient = sectorRng.nextGaussian() * base * 0.003;
+
+        double specific = switch (sec) {
+            case ARCANE       -> (night ? base * 0.012 : -base * 0.003) + (full ? base * 0.01 : 0);
+            case MINING       -> thunder ? base * 0.008 : 0;
+            case AGRARIAN     -> night ? -base * 0.002 : base * 0.003;
+            case LUMBER       -> thunder ? -base * 0.003 : 0;
+            case LIVESTOCK    -> night ? -base * 0.002 : base * 0.001;
+            case MANUFACTURED -> 0;
         };
+        return ambient + specific;
     }
 
     private void pushNews(String headline) {

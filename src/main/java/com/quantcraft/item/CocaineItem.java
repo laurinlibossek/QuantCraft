@@ -1,13 +1,18 @@
 package com.quantcraft.item;
 
 import com.quantcraft.registry.ModEffects;
+import net.minecraft.client.item.TooltipContext;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.item.FoodComponent;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 import net.minecraft.world.World;
+import org.jetbrains.annotations.Nullable;
+import java.util.List;
 
 public class CocaineItem extends Item {
 
@@ -19,6 +24,12 @@ public class CocaineItem extends Item {
                         .hunger(0)
                         .saturationModifier(0f)
                         .build()));
+    }
+
+    @Override
+    public void appendTooltip(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext ctx) {
+        tooltip.add(Text.literal("Wall Street's favourite breakfast.").formatted(Formatting.GRAY));
+        tooltip.add(Text.literal("Right-click to consume. Results may vary.").formatted(Formatting.DARK_GRAY));
     }
 
     @Override

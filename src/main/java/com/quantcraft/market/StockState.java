@@ -9,6 +9,7 @@ public class StockState {
     private double currentPrice, previousPrice, openPrice;
     private final ArrayDeque<Double> priceHistory = new ArrayDeque<>(HISTORY_SIZE);
     private double eventPressure = 0.0;
+    private double supplyPressure = 0.0;
     private int sharesHeld = 0;
     private final OrderBook orderBook;
     private final CandleHistory candleHistory;
@@ -33,6 +34,17 @@ public class StockState {
 
     public void applyEventPressure(double delta)  { eventPressure += delta; }
     public double consumeEventPressure()           { double p = eventPressure; eventPressure = 0; return p; }
+
+    public void applySupplyPressure(double delta)  { supplyPressure += delta; }
+    public double tickSupplyPressure() {
+        double effect = supplyPressure * 0.05;
+        supplyPressure *= 0.97;
+        if (Math.abs(supplyPressure) < 0.01) supplyPressure = 0;
+        return effect;
+    }
+    public double getSupplyPressure()              { return supplyPressure; }
+    public void setSupplyPressure(double v)        { supplyPressure = v; }
+
     public void adjustSharesHeld(int delta)        { sharesHeld = Math.max(0, sharesHeld + delta); }
     public int getAvailableShares(int total)       { return Math.max(0, total - sharesHeld); }
 

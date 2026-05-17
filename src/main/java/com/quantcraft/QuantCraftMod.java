@@ -34,6 +34,7 @@ public class QuantCraftMod implements ModInitializer {
         QuantCraftConfig.load();
         StockRegistry.initialize();
         ModEffects.register();
+        com.quantcraft.recipe.CocaineRecipeCondition.register();
         ModItems.register();
         ModBlocks.register();
         ModItemGroups.register();

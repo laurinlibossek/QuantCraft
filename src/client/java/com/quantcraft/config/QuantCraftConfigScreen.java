@@ -46,6 +46,13 @@ public class QuantCraftConfigScreen {
                 .setTooltip(Text.literal("Tax on stock trades and dividends. 0.02 = 2%. Removed from economy."))
                 .setSaveConsumer(QuantCraftConfig::setTaxRate).build());
 
+        var gameplay = builder.getOrCreateCategory(Text.literal("Gameplay"));
+
+        gameplay.addEntry(e.startBooleanToggle(Text.literal("Enable Cocaine Crafting"),
+                QuantCraftConfig.isCocaineCraftingEnabled()).setDefaultValue(true)
+                .setTooltip(Text.literal("Allow cocaine to be crafted. Requires server restart."))
+                .setSaveConsumer(QuantCraftConfig::setCocaineCraftingEnabled).build());
+
         return builder.build();
     }
 }
