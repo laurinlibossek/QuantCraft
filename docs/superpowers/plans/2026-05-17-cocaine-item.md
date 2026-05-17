@@ -4,7 +4,7 @@
 
 **Goal:** Add a `quantcraft:cocaine` food item with a `cocaine_high` status effect carrier, a 2-minute crash on removal, a shapeless crafting recipe, and a Mixin that prevents milk from curing the crash.
 
-**Architecture:** `CocaineHighEffect` is a custom `StatusEffect` whose `onRemoved` fires the crash and tags the player NBT. `CocaineItem.finishUsing` applies buffs and the carrier effect. `MilkMixin` injects into `MilkBucketItem.finishUsing` to snapshot and reapply crash effects that milk would otherwise clear.
+**Architecture:** `CocaineHighEffect` is a minimal `StatusEffect` (category + color only). `CocaineCrashMixin` injects into `LivingEntity.onStatusEffectRemoved` to apply crash effects when the carrier expires, and tracks crashing players via a static `Set<UUID>`. `CocaineItem.finishUsing` applies buffs and the carrier effect. `MilkMixin` checks `CocaineCrashMixin.CRASHING` to snapshot and reapply crash effects that milk would otherwise clear.
 
 **Tech Stack:** Fabric MC 1.20.4, Java 17, Mixin, JUnit 5 (unit tests cover pure logic only — Minecraft class instantiation is not feasible in unit tests; Mixin and item behavior verified by in-game smoke test checklist)
 
@@ -14,14 +14,15 @@
 
 | Action | Path | Responsibility |
 |--------|------|----------------|
-| Create | `src/main/java/com/quantcraft/item/CocaineHighEffect.java` | Custom StatusEffect; crash logic in `onRemoved` |
+| ~~Create~~ ✅ | `src/main/java/com/quantcraft/item/CocaineHighEffect.java` | Custom StatusEffect (category + color only; crash in mixin) |
 | Create | `src/main/java/com/quantcraft/item/CocaineItem.java` | Food item; applies buffs + carrier effect in `finishUsing` |
-| Create | `src/main/java/com/quantcraft/registry/ModEffects.java` | Registers `COCAINE_HIGH` effect |
+| ~~Create~~ ✅ | `src/main/java/com/quantcraft/registry/ModEffects.java` | Registers `COCAINE_HIGH` effect |
+| ~~Create~~ ✅ | `src/main/java/com/quantcraft/mixin/CocaineCrashMixin.java` | Fires crash when cocaine_high expires; tracks crashing via `Set<UUID>` |
 | Create | `src/main/java/com/quantcraft/mixin/MilkMixin.java` | Prevents milk from clearing crash effects |
 | Modify | `src/main/java/com/quantcraft/registry/ModItems.java` | Add `COCAINE` constant + `reg()` call |
 | Modify | `src/main/java/com/quantcraft/registry/ModItemGroups.java` | Add cocaine to creative tab |
-| Modify | `src/main/java/com/quantcraft/QuantCraftMod.java` | Call `ModEffects.register()` before `ModItems.register()` |
-| Modify | `src/main/resources/quantcraft.mixins.json` | Add `MilkMixin` to `"mixins"` array |
+| ~~Modify~~ ✅ | `src/main/java/com/quantcraft/QuantCraftMod.java` | Call `ModEffects.register()` before `ModItems.register()` |
+| Modify | `src/main/resources/quantcraft.mixins.json` | Add `MilkMixin` to `"mixins"` array (CocaineCrashMixin already added) |
 | Create | `src/main/resources/assets/quantcraft/models/item/cocaine.json` | Standard generated item model |
 | Create | `src/main/resources/assets/quantcraft/textures/item/cocaine.png` | 16x16 texture |
 | Modify | `src/main/resources/assets/quantcraft/lang/en_us.json` | Add display name |
@@ -29,112 +30,22 @@
 
 ---
 
-## Task 1: `CocaineHighEffect` — status effect with crash logic
+## ~~Task 1: `CocaineHighEffect` — status effect with crash logic~~ ✅ DONE
 
-**Files:**
-- Create: `src/main/java/com/quantcraft/item/CocaineHighEffect.java`
+Commits: `3bde9b8`, `1d3d1c3`
 
-- [ ] **Step 1: Create `CocaineHighEffect.java`**
-
-```java
-package com.quantcraft.item;
-
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.attribute.AttributeContainer;
-import net.minecraft.entity.effect.StatusEffect;
-import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.entity.effect.StatusEffectType;
-import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.entity.player.PlayerEntity;
-
-public class CocaineHighEffect extends StatusEffect {
-
-    public CocaineHighEffect() {
-        super(StatusEffectType.BENEFICIAL, 0xE8A000);
-    }
-
-    @Override
-    public void onRemoved(LivingEntity entity, AttributeContainer attributes, int amplifier) {
-        entity.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS,       2400, 1, false, true, true));
-        entity.addStatusEffect(new StatusEffectInstance(StatusEffects.WEAKNESS,       2400, 0, false, true, true));
-        entity.addStatusEffect(new StatusEffectInstance(StatusEffects.MINING_FATIGUE, 2400, 0, false, true, true));
-        entity.addStatusEffect(new StatusEffectInstance(StatusEffects.NAUSEA,         2400, 0, false, true, true));
-        entity.addStatusEffect(new StatusEffectInstance(StatusEffects.HUNGER,         2400, 0, false, true, true));
-
-        if (entity instanceof PlayerEntity player) {
-            player.getCustomData().putBoolean("CocaineCrash", true);
-        }
-    }
-}
-```
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add src/main/java/com/quantcraft/item/CocaineHighEffect.java
-git commit -m "Add CocaineHighEffect with crash logic on removal"
-```
+- `CocaineHighEffect.java` — minimal StatusEffect with `StatusEffectCategory.BENEFICIAL`, color `0xE8A000`
+- `CocaineCrashMixin.java` — injects into `LivingEntity.onStatusEffectRemoved`; applies crash effects (slowness II, weakness I, mining_fatigue I, nausea I, hunger I — all 2400t); adds player UUID to `CocaineCrashMixin.CRASHING`
+- `quantcraft.mixins.json` — `CocaineCrashMixin` registered
 
 ---
 
-## Task 2: `ModEffects` — register the effect
+## ~~Task 2: `ModEffects` — register the effect~~ ✅ DONE
 
-**Files:**
-- Create: `src/main/java/com/quantcraft/registry/ModEffects.java`
-- Modify: `src/main/java/com/quantcraft/QuantCraftMod.java` (line ~33–36)
+Commit: `9d938c4`
 
-- [ ] **Step 1: Create `ModEffects.java`**
-
-```java
-package com.quantcraft.registry;
-
-import com.quantcraft.QuantCraftMod;
-import com.quantcraft.item.CocaineHighEffect;
-import net.minecraft.entity.effect.StatusEffect;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.Registry;
-import net.minecraft.util.Identifier;
-
-public class ModEffects {
-    public static final StatusEffect COCAINE_HIGH = new CocaineHighEffect();
-
-    public static void register() {
-        Registry.register(Registries.STATUS_EFFECT,
-                new Identifier(QuantCraftMod.MOD_ID, "cocaine_high"),
-                COCAINE_HIGH);
-    }
-}
-```
-
-- [ ] **Step 2: Call `ModEffects.register()` in `QuantCraftMod.onInitialize()`**
-
-In `src/main/java/com/quantcraft/QuantCraftMod.java`, the current order in `onInitialize()` is:
-```java
-QuantCraftConfig.load();
-StockRegistry.initialize();
-ModItems.register();
-```
-
-Change it to:
-```java
-QuantCraftConfig.load();
-StockRegistry.initialize();
-ModEffects.register();
-ModItems.register();
-```
-
-Add the import at the top of the file:
-```java
-import com.quantcraft.registry.ModEffects;
-```
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add src/main/java/com/quantcraft/registry/ModEffects.java \
-        src/main/java/com/quantcraft/QuantCraftMod.java
-git commit -m "Register cocaine_high status effect"
-```
+- `ModEffects.java` created with `COCAINE_HIGH` constant and `register()`
+- `QuantCraftMod.onInitialize()` calls `ModEffects.register()` between `StockRegistry.initialize()` and `ModItems.register()`
 
 ---
 
@@ -373,7 +284,7 @@ public class MilkMixin {
                                       CallbackInfoReturnable<ItemStack> cir) {
         if (world.isClient) return;
         if (!(user instanceof PlayerEntity player)) return;
-        if (!player.getCustomData().getBoolean("CocaineCrash")) return;
+        if (!CocaineCrashMixin.CRASHING.contains(player.getUuid())) return;
 
         List<StatusEffectInstance> snapshot = CRASH_SNAPSHOT.get();
         snapshot.clear();
@@ -412,21 +323,21 @@ public class MilkMixin {
 
 - [ ] **Step 2: Update `src/main/resources/quantcraft.mixins.json`**
 
-Change `"mixins": []` to:
-```json
-"mixins": ["MilkMixin"],
-```
-
-Full file after the change:
+Current content (CocaineCrashMixin already registered):
 ```json
 {
   "required": true,
   "package": "com.quantcraft.mixin",
   "compatibilityLevel": "JAVA_17",
-  "mixins": ["MilkMixin"],
+  "mixins": ["CocaineCrashMixin"],
   "client": [],
   "injectors": { "defaultRequire": 1 }
 }
+```
+
+Add `MilkMixin` to the array:
+```json
+"mixins": ["CocaineCrashMixin", "MilkMixin"],
 ```
 
 - [ ] **Step 3: Commit**
