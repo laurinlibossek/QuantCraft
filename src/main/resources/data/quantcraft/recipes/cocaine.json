@@ -1,4 +1,7 @@
 {
+  "fabric:load_conditions": [
+    {"condition": "quantcraft:cocaine_enabled"}
+  ],
   "type": "minecraft:crafting_shapeless",
   "ingredients": [
     {"item": "quantcraft:dollar_bill"},

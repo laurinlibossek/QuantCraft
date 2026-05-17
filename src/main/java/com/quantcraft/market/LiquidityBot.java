@@ -37,9 +37,9 @@ public class LiquidityBot {
         book.cancelAllForPlayer(BOT_UUID);
 
         double base = def.basePrice();
-        targetPriceMid = targetPriceMid + (base - targetPriceMid) * def.meanReversionStrength() * 0.02
-                + (random.nextGaussian() * def.volatility() * 0.005 * price)
-                + (random.nextGaussian() * base * 0.002);
+        targetPriceMid = targetPriceMid + (base - targetPriceMid) * def.meanReversionStrength() * 0.015
+                + (random.nextGaussian() * def.volatility() * 0.012 * price)
+                + (random.nextGaussian() * base * 0.005);
         targetPriceMid = Math.max(base * 0.3, Math.min(base * 3.0, targetPriceMid));
 
         double spread = Math.max(0.5, price * spreadPct);

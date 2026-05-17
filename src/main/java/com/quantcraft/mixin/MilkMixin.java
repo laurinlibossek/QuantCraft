@@ -1,5 +1,6 @@
 package com.quantcraft.mixin;
 
+import com.quantcraft.item.CocaineCrashTracker;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.entity.effect.StatusEffectInstance;
@@ -41,7 +42,7 @@ public class MilkMixin {
                                       CallbackInfoReturnable<ItemStack> cir) {
         if (world.isClient) return;
         if (!(user instanceof PlayerEntity player)) return;
-        if (!CocaineCrashMixin.CRASHING.contains(player.getUuid())) return;
+        if (!CocaineCrashTracker.CRASHING.contains(player.getUuid())) return;
 
         List<StatusEffectInstance> snapshot = CRASH_SNAPSHOT.get();
         snapshot.clear();

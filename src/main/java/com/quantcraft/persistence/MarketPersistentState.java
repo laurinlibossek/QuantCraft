@@ -34,6 +34,7 @@ public class MarketPersistentState extends PersistentState {
         if (nbt.contains("stocks")) {
             NbtCompound stocks = nbt.getCompound("stocks");
             NbtCompound held   = nbt.contains("sharesHeld") ? nbt.getCompound("sharesHeld") : new NbtCompound();
+            NbtCompound supply = nbt.contains("supplyPressure") ? nbt.getCompound("supplyPressure") : new NbtCompound();
             for (String tk : stocks.getKeys()) {
                 NbtCompound s     = stocks.getCompound(tk);
                 double cur        = s.getDouble("current");
@@ -44,6 +45,7 @@ public class MarketPersistentState extends PersistentState {
                 List<Double> h    = new ArrayList<>();
                 for (NbtElement el : hist) h.add(((NbtDouble) el).doubleValue());
                 ss.restoreHistory(h, prev, sharesHeld);
+                if (supply.contains(tk)) ss.setSupplyPressure(supply.getDouble(tk));
                 state.stockStates.put(tk, ss);
             }
         }
@@ -176,8 +178,14 @@ public class MarketPersistentState extends PersistentState {
             stocks.put(e.getKey(), sn);
             sharesHeld.putInt(e.getKey(), s.getSharesHeld());
         }
-        nbt.put("stocks",     stocks);
-        nbt.put("sharesHeld", sharesHeld);
+        NbtCompound supplyPressure = new NbtCompound();
+        for (var e : stockStates.entrySet()) {
+            double sp = e.getValue().getSupplyPressure();
+            if (sp != 0) supplyPressure.putDouble(e.getKey(), sp);
+        }
+        nbt.put("stocks",          stocks);
+        nbt.put("sharesHeld",      sharesHeld);
+        nbt.put("supplyPressure",  supplyPressure);
 
         NbtCompound pNbts = new NbtCompound();
         for (var e : portfolios.entrySet()) {
