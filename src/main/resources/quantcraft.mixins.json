@@ -2,7 +2,7 @@
   "required": true,
   "package": "com.quantcraft.mixin",
   "compatibilityLevel": "JAVA_17",
-  "mixins": [],
+  "mixins": ["CocaineCrashMixin"],
   "client": [],
   "injectors": { "defaultRequire": 1 }
 }
