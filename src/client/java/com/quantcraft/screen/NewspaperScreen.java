@@ -27,7 +27,7 @@ public class NewspaperScreen extends Screen {
                     "\"We just kept digging,\" said one miner, exhausted but grinning. The find",
                     "has already impacted markets, with Diamond prices falling 18% on oversupply.",
                     "",
-                    "Officials expect mining operations to intensify across the region."
+                    "Officials expect mining operations to intensify."
                 ), "Vol. 1, No. 4"));
 
         DATA.put(NewspaperItem.NewspaperType.TRADE_WAR, new Article(
@@ -40,8 +40,7 @@ public class NewspaperScreen extends Screen {
                     "Manufactured goods like Glass, Brick, and Paper have been hit hardest,",
                     "with prices down 22-31% across the board.",
                     "",
-                    "Agrarian exports have surged as demand shifts to food production.",
-                    "No resolution in sight."
+                    "Agrarian exports have surged as demand shifts to food production."
                 ), "Vol. 2, No. 7"));
 
         DATA.put(NewspaperItem.NewspaperType.MINING_BOOM, new Article(
@@ -53,8 +52,7 @@ public class NewspaperScreen extends Screen {
                     "",
                     "The find has already flooded markets, with Iron Ingot prices down 25% in",
                     "emergency trading. Coal prices have also softened on excess supply.",
-                    "",
-                    "Economists warn of potential oversupply if extraction rates accelerate."
+                    "Economists warn of potential oversupply!"
                 ), "Vol. 1, No. 12"));
 
         DATA.put(NewspaperItem.NewspaperType.LUMBER_SHORTAGE, new Article(
@@ -63,12 +61,10 @@ public class NewspaperScreen extends Screen {
                 List.of(
                     "A fungal blight of unknown origin is rapidly killing centuries-old trees",
                     "across northern biomes.",
-                    "",
                     "Foresters report that Oak, Birch, and Spruce logs have surged over 30% in",
                     "emergency trading as supply collapses.",
                     "",
-                    "Lumber mills are shuttering operations and construction projects are delayed.",
-                    "Remedy remains elusive."
+                    "Lumber mills are shuttering operations."
                 ), "Vol. 5, No. 2"));
 
         DATA.put(NewspaperItem.NewspaperType.GOLD_RUSH, new Article(
@@ -80,8 +76,7 @@ public class NewspaperScreen extends Screen {
                     "",
                     "The sudden influx has created a frenzy, with tent cities springing up overnight.",
                     "",
-                    "Gold Ingot futures tumbled 29% on supply glut fears. Established traders",
-                    "warn this bubble may burst soon."
+                    "Gold Ingot futures tumbled 29% on supply glut fears."
                 ), "Vol. 2, No. 3"));
 
         DATA.put(NewspaperItem.NewspaperType.HARVEST_FESTIVAL, new Article(
@@ -94,7 +89,7 @@ public class NewspaperScreen extends Screen {
                     "Farmers report ideal growing conditions and early harvests have already begun.",
                     "",
                     "Prices across the Agrarian sector have collapsed 35-42%, threatening farm",
-                    "incomes. Relief programs being considered."
+                    "incomes."
                 ), "Vol. 4, No. 9"));
 
         DATA.put(NewspaperItem.NewspaperType.ARCANE_ANOMALY, new Article(
@@ -103,7 +98,6 @@ public class NewspaperScreen extends Screen {
                 List.of(
                     "Dimensional fluctuations across multiple regions have sent demand for arcane",
                     "components through the ceiling.",
-                    "",
                     "Researchers remain baffled by the surge in portal activity, with no clear",
                     "cause or timeline identified.",
                     "",
@@ -121,8 +115,7 @@ public class NewspaperScreen extends Screen {
                     "Herds have been virtually eliminated, with supplies of Leather, Wool, and",
                     "Feathers now critically scarce.",
                     "",
-                    "Prices for these commodities collapsed as panic selling takes hold.",
-                    "Recovery could take months or years."
+                    "Prices for these commodities collapsed as panic selling takes hold."
                 ), "Vol. 3, No. 6"));
 
         DATA.put(NewspaperItem.NewspaperType.EMERALD_CARTEL, new Article(
@@ -133,10 +126,9 @@ public class NewspaperScreen extends Screen {
                     "80% of the regional emerald supply.",
                     "",
                     "The monopoly has sent prices rocketing, with Emeralds up 40% in emergency",
-                    "trading. Experts expect a sustained boom.",
+                    "trading.",
                     "",
-                    "Authorities are investigating potential antitrust violations, but enforcement",
-                    "remains unclear."
+                    "Authorities are investigating potential antitrust violations."
                 ), "Vol. 6, No. 3"));
     }
 

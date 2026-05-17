@@ -8,3 +8,20 @@ out/
 bin/
 .vscode/
 .claude/
+
+# macOS
+**/.DS_Store
+.AppleDouble
+
+# Vim/editor backups
+*.swp
+*.swo
+*~
+
+# Eclipse
+.project
+.classpath
+.settings/
+
+# Logs
+*.log

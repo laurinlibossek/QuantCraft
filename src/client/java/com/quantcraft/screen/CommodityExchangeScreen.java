@@ -83,8 +83,6 @@ public class CommodityExchangeScreen extends HandledScreen<CommodityExchangeScre
             ctx.drawText(textRenderer, "Held:", rx,      42, GRAY, false);
             ctx.drawText(textRenderer, r.playerHeld() + " items", rx + 32, 42, 0xFFffffff, false);
             ctx.fill(rx, 52, backgroundWidth - 4, 53, 0xFF334455);
-            ctx.drawText(textRenderer, "Prices track stock market.", rx, backgroundHeight - 20, GRAY, false);
-            ctx.drawText(textRenderer, "Floor prevents crashes.",    rx, backgroundHeight - 10, GRAY, false);
         }
     }
 
