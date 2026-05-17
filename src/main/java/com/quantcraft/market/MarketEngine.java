@@ -101,8 +101,6 @@ public class MarketEngine {
     private synchronized void tickSimulated(MinecraftServer server) {
         long    wt        = server.getOverworld().getTimeOfDay();
         long    tod       = wt % 24000L;
-        boolean isNight   = tod > 13000L;
-        boolean isFullMoon= (server.getOverworld().getMoonPhase() == 0);
         boolean isThunder = server.getOverworld().isThundering();
         // Market open: dawn (tod 0) through dusk (tod 12999)
         boolean wasOpen = marketOpen;
@@ -135,7 +133,7 @@ public class MarketEngine {
             if (bot != null) bot.tick(state, def);
 
             double eventPressure = state.consumeEventPressure();
-            double sectorMod = computeSectorModifier(def.sector(), isNight, isFullMoon, isThunder, def.basePrice());
+            double sectorMod = computeSectorModifier(def.sector(), isThunder, def.basePrice());
 
             float mult = QuantCraftConfig.getGlobalVolatilityMultiplier();
             if (eventPressure != 0 || sectorMod != 0)
@@ -336,18 +334,20 @@ public class MarketEngine {
     public void fireEvent(WorldMarketEvent event, String optTicker) {
         if (!QuantCraftConfig.isEventPressureEnabled()) return;
         switch (event) {
-            case PLAYER_MINED_ORE      -> pressureSector(MarketSector.MINING,   -2.5);
-            case PLAYER_MINED_WOOD     -> pressureSector(MarketSector.LUMBER,   -1.5);
-            case PLAYER_HARVESTED_CROP -> pressureSector(MarketSector.AGRARIAN, -1.0);
-            case PLAYER_KILLED_MOB     -> { pressureSector(MarketSector.ARCANE, -1.5); pressureSector(MarketSector.LIVESTOCK, -1.0); }
-            case PLAYER_KILLED_BOSS    -> { pressureSector(MarketSector.ARCANE, -20.0); pushNews("BREAKING: Boss slain — Arcane sector in freefall!"); }
-            case PLAYER_ENTERED_NETHER -> pressureSector(MarketSector.ARCANE,   -3.0);
-            case RAID_OCCURRED         -> { pressureSector(MarketSector.AGRARIAN, -12.0); pressureSector(MarketSector.MANUFACTURED, +8.0); pushNews("Raid! Agrarian crashes, Manufacturing surges."); }
-            case THUNDER_STORM         -> { pressureSector(MarketSector.MINING, +2.5); pressureSector(MarketSector.LUMBER, +1.5); }
-            case CLEAR_WEATHER         -> pressureAll(+0.5);
-            case FULL_MOON             -> pressureSector(MarketSector.ARCANE,   -5.0);
-            case PLAYER_BOUGHT_STOCK   -> { if (optTicker != null) pressureTicker(optTicker, +2.0); }
-            case PLAYER_SOLD_STOCK     -> { if (optTicker != null) pressureTicker(optTicker, -2.0); }
+            // Repeated supply-side actions: small per-event pressure — sustained mining/farming sessions
+            // gradually move the market without any single block break being noticeable.
+            case PLAYER_MINED_ORE      -> pressureSector(MarketSector.MINING,   -0.5);
+            case PLAYER_MINED_WOOD     -> pressureSector(MarketSector.LUMBER,   -0.3);
+            case PLAYER_HARVESTED_CROP -> pressureSector(MarketSector.AGRARIAN, -0.2);
+            case PLAYER_KILLED_MOB     -> { pressureSector(MarketSector.ARCANE, -0.3); pressureSector(MarketSector.LIVESTOCK, -0.15); }
+            // Boss and raid effects are sustained ActiveMarketEvents created in MarketEventListener.
+            case PLAYER_KILLED_BOSS    -> {}
+            case RAID_OCCURRED         -> {}
+            // Weather clearing: brief positive sentiment across all stocks.
+            case CLEAR_WEATHER         -> pressureAll(+0.3);
+            // Trade flow: each buy/sell nudges the ticker slightly.
+            case PLAYER_BOUGHT_STOCK   -> { if (optTicker != null) pressureTicker(optTicker, +0.8); }
+            case PLAYER_SOLD_STOCK     -> { if (optTicker != null) pressureTicker(optTicker, -0.8); }
             case ADMIN_SECTOR_CRASH    -> { if (optTicker != null) try { pressureSector(MarketSector.valueOf(optTicker), -50.0); } catch (Exception ignored) {} }
             case ADMIN_SECTOR_BOOM     -> { if (optTicker != null) try { pressureSector(MarketSector.valueOf(optTicker), +50.0); } catch (Exception ignored) {} }
         }
@@ -360,9 +360,8 @@ public class MarketEngine {
     private void pressureTicker(String ticker, double delta) { StockState s = states.get(ticker); if (s != null) s.applyEventPressure(delta); }
     private void pressureAll(double delta)                   { states.values().forEach(s -> s.applyEventPressure(delta)); }
 
-    private double computeSectorModifier(MarketSector sec, boolean night, boolean full, boolean thunder, double base) {
+    private double computeSectorModifier(MarketSector sec, boolean thunder, double base) {
         return switch (sec) {
-            case ARCANE   -> (night ? base * 0.008 : 0) + (full ? -base * 0.015 : 0);
             case MINING   -> thunder ? base * 0.006 : 0;
             case AGRARIAN -> thunder ? -base * 0.004 : 0;
             default       -> 0;
