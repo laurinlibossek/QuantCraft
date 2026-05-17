@@ -104,7 +104,7 @@ public class TradingPostScreenHandler extends ScreenHandler {
             var ps = MarketPersistentState.getOrCreate(sp.getServer().getOverworld());
             PlayerPortfolio port = ps.getPortfolio(sp.getUuid());
             int amount = (int) Math.floor(port.getBalance());
-            if (amount <= 0) {
+            if (amount <= 0 || port.getBalance() < 1.0) {
                 sp.sendMessage(Text.literal("§cNo funds to withdraw."), false);
                 return false;
             }

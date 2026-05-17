@@ -98,14 +98,18 @@ public class MarketEngine {
 
     public Map<String,Double> getClosingPrices() { return Collections.unmodifiableMap(closingPrices); }
 
-    private void tickSimulated(MinecraftServer server) {
+    private synchronized void tickSimulated(MinecraftServer server) {
         long    wt        = server.getOverworld().getTimeOfDay();
         long    tod       = wt % 24000L;
         boolean isNight   = tod > 13000L;
         boolean isFullMoon= (server.getOverworld().getMoonPhase() == 0);
         boolean isThunder = server.getOverworld().isThundering();
         // Market open: dawn (tod 0) through dusk (tod 12999)
+        boolean wasOpen = marketOpen;
         marketOpen = tod < 13000L;
+        if (marketOpen && !wasOpen) {
+            for (StockState ss : states.values()) ss.snapshotOpenPrice();
+        }
 
         // Apply active newspaper events only during market hours; pause countdown at night
         if (marketOpen) {
@@ -161,20 +165,20 @@ public class MarketEngine {
                     int fill  = Math.min(qty, avail);
                     int unfilled = qty - fill;
                     if (unfilled > 0) {
-                        portfolio.addBalance(order.getLimitPrice() * unfilled);
+                        double refundCost = order.getLimitPrice() * unfilled;
+                        double refundTax  = refundCost * taxRate;
+                        portfolio.addBalance(refundCost + refundTax);
                         notify(server, order.getPlayerUuid(),
                                 String.format("§eLimit BUY partial: %d/%d %s filled, §e%.1f¢§e refunded for unfilled portion",
-                                        fill, qty, def.ticker(), order.getLimitPrice() * unfilled));
+                                        fill, qty, def.ticker(), refundCost + refundTax));
                     }
                     if (fill > 0) {
-                        double tax = price * fill * taxRate;
-                        portfolio.deductBalance(tax);
-                        portfolio.addShares(def.ticker(), fill);
+                        portfolio.addShares(def.ticker(), fill, price);
                         state.adjustSharesHeld(+fill);
                         state.getCandleHistory().recordTrade(price, fill);
                         fireEvent(WorldMarketEvent.PLAYER_BOUGHT_STOCK, def.ticker());
                         notify(server, order.getPlayerUuid(),
-                                String.format("§aLimit BUY filled: %d %s @ §e%.1f¢ §7(%.0f%% tax)", fill, def.ticker(), price, taxRate * 100));
+                                String.format("§aLimit BUY filled: %d %s @ §e%.1f¢ §7(%.0f%% tax escrowed)", fill, def.ticker(), price, taxRate * 100));
                     }
                 } else {
                     int fill = qty;

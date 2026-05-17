@@ -18,7 +18,12 @@ public class InvestmentCenterPiece extends SimpleStructurePiece {
 
     public InvestmentCenterPiece(StructureContext context, NbtCompound nbt) {
         super(ModStructures.INVESTMENT_CENTER_PIECE, nbt, context.structureTemplateManager(),
-                id -> makePlacement(BlockRotation.valueOf(nbt.getString("Rot"))));
+                id -> makePlacement(parseRotation(nbt.getString("Rot"))));
+    }
+
+    private static BlockRotation parseRotation(String rot) {
+        try { return BlockRotation.valueOf(rot); }
+        catch (Exception e) { return BlockRotation.NONE; }
     }
 
     private static StructurePlacementData makePlacement(BlockRotation rotation) {
