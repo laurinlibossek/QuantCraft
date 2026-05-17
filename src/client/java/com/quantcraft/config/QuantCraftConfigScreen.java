@@ -16,7 +16,7 @@ public class QuantCraftConfigScreen {
         var general = builder.getOrCreateCategory(Text.literal("General"));
 
         general.addEntry(e.startIntField(Text.literal("Starting Balance"),
-                QuantCraftConfig.getStartingBalance()).setDefaultValue(500).setMin(0).setMax(1000000)
+                QuantCraftConfig.getStartingBalance()).setDefaultValue(0).setMin(0).setMax(1000000)
                 .setTooltip(Text.literal("Starting balance for new players"))
                 .setSaveConsumer(QuantCraftConfig::setStartingBalance).build());
 
@@ -45,17 +45,6 @@ public class QuantCraftConfigScreen {
                 QuantCraftConfig.getTaxRate()).setDefaultValue(0.02).setMin(0.0).setMax(0.25)
                 .setTooltip(Text.literal("Tax on stock trades and dividends. 0.02 = 2%. Removed from economy."))
                 .setSaveConsumer(QuantCraftConfig::setTaxRate).build());
-
-        var structures = builder.getOrCreateCategory(Text.literal("Structures"));
-
-        structures.addEntry(e.startBooleanToggle(Text.literal("Spawn Investment Centers"),
-                QuantCraftConfig.isSpawnTradingHuts()).setDefaultValue(true)
-                .setSaveConsumer(QuantCraftConfig::setSpawnTradingHuts).build());
-
-        structures.addEntry(e.startIntField(Text.literal("Investment Center Rarity"),
-                QuantCraftConfig.getHutSpawnRarity()).setDefaultValue(32).setMin(8).setMax(256)
-                .setTooltip(Text.literal("Lower = more common. ~1 per N chunks"))
-                .setSaveConsumer(QuantCraftConfig::setHutSpawnRarity).build());
 
         return builder.build();
     }

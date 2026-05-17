@@ -39,8 +39,6 @@ public class QuantCraftConfig {
     public static float   getGlobalVolatilityMultiplier()  { return data.globalVolatilityMultiplier; }
     public static boolean isEventPressureEnabled()         { return data.eventPressureEnabled; }
     public static boolean isMarketNewsEnabled()            { return data.marketNewsEnabled; }
-    public static boolean isSpawnTradingHuts()             { return data.spawnTradingHuts; }
-    public static int     getHutSpawnRarity()              { return data.hutSpawnRarity; }
     public static double  getTaxRate()                     { return data.taxRate; }
 
     // Setters
@@ -49,18 +47,14 @@ public class QuantCraftConfig {
     public static void setGlobalVolatilityMultiplier(float v)    { data.globalVolatilityMultiplier = v; }
     public static void setEventPressureEnabled(boolean v)        { data.eventPressureEnabled = v; }
     public static void setMarketNewsEnabled(boolean v)           { data.marketNewsEnabled = v; }
-    public static void setSpawnTradingHuts(boolean v)            { data.spawnTradingHuts = v; }
-    public static void setHutSpawnRarity(int v)                  { data.hutSpawnRarity = v; }
     public static void setTaxRate(double v)                      { data.taxRate = v; }
 
     private static class ConfigData {
-        int     startingBalance           = 500;
+        int     startingBalance           = 0;
         int     marketTickInterval        = 1200;
         float   globalVolatilityMultiplier= 1.0f;
         boolean eventPressureEnabled      = true;
         boolean marketNewsEnabled         = true;
-        boolean spawnTradingHuts          = true;
-        int     hutSpawnRarity            = 32;
         double  taxRate                   = 0.02;
     }
 }

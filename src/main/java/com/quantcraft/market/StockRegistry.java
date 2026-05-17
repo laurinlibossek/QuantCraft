@@ -66,23 +66,22 @@ public class StockRegistry {
         add("BRICK","Brick",        "minecraft:brick",       MANUFACTURED,18,0.16,0.36, 35000, 6.0, 0.91);
         add("PAPER","Paper",        "minecraft:paper",       MANUFACTURED, 4,0.18,0.34, 40000, 1.0, 0.90);
 
-        // ── Dividend rates (paid per payout cycle) ───────────────────────────
-        // Cheap & farmable sectors get higher dividend rates (income stocks)
-        // Expensive & scarce sectors get lower rates (growth stocks)
+        // ── Dividend rates (paid per 3-day payout cycle) ─────────────────────
+        // Rates kept low to prevent inflation (annualized ~2-5% APY)
         // AGRARIAN — easy to farm, reward holding
-        for (String tk : new String[]{"WHEAT","CRRT","POTAT","APPLE","MELON"}) DIVIDEND_RATES.put(tk, 0.020);
+        for (String tk : new String[]{"WHEAT","CRRT","POTAT","APPLE","MELON"}) DIVIDEND_RATES.put(tk, 0.002);
         // LUMBER — trivial farms
-        for (String tk : new String[]{"OAKW","BIRC","SPRCE"})                   DIVIDEND_RATES.put(tk, 0.022);
+        for (String tk : new String[]{"OAKW","BIRC","SPRCE"})                   DIVIDEND_RATES.put(tk, 0.0022);
         // LIVESTOCK — moderate farms
-        for (String tk : new String[]{"LEAT","WOOL","FTHR"})                    DIVIDEND_RATES.put(tk, 0.018);
+        for (String tk : new String[]{"LEAT","WOOL","FTHR"})                    DIVIDEND_RATES.put(tk, 0.0018);
         // MANUFACTURED — mixed effort
-        for (String tk : new String[]{"GLASS","BRICK","PAPER"})                 DIVIDEND_RATES.put(tk, 0.016);
+        for (String tk : new String[]{"GLASS","BRICK","PAPER"})                 DIVIDEND_RATES.put(tk, 0.0016);
         // MINING — common ores + emerald (villager-farmable)
-        for (String tk : new String[]{"COAL","IRON","GOLD","EMER","LAPIS","RDST","QRTZ"}) DIVIDEND_RATES.put(tk, 0.010);
+        for (String tk : new String[]{"COAL","IRON","GOLD","EMER","LAPIS","RDST","QRTZ"}) DIVIDEND_RATES.put(tk, 0.001);
         // MINING — diamond (genuinely rare, growth stock)
-        DIVIDEND_RATES.put("DIAM", 0.005);
+        DIVIDEND_RATES.put("DIAM", 0.0005);
         // ARCANE — dangerous to obtain, low dividend (growth stocks)
-        for (String tk : new String[]{"EPRL","BLAZ","GLOW","GHST","SKEL"})      DIVIDEND_RATES.put(tk, 0.004);
+        for (String tk : new String[]{"EPRL","BLAZ","GLOW","GHST","SKEL"})      DIVIDEND_RATES.put(tk, 0.0004);
     }
 
     private static final MarketSector AGRARIAN     = MarketSector.AGRARIAN;

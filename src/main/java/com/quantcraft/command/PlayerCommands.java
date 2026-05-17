@@ -28,6 +28,18 @@ public class PlayerCommands {
                     .executes(ctx -> prices(ctx.getSource(), null))
                     .then(argument("sector", StringArgumentType.word())
                         .executes(ctx -> prices(ctx.getSource(), StringArgumentType.getString(ctx, "sector")))))
+                .then(literal("buy").then(argument("ticker", StringArgumentType.word())
+                    .then(argument("qty", IntegerArgumentType.integer(1))
+                        .executes(ctx -> trade(ctx.getSource(),
+                            StringArgumentType.getString(ctx, "ticker"),
+                            IntegerArgumentType.getInteger(ctx, "qty"),
+                            true)))))
+                .then(literal("sell").then(argument("ticker", StringArgumentType.word())
+                    .then(argument("qty", IntegerArgumentType.integer(1))
+                        .executes(ctx -> trade(ctx.getSource(),
+                            StringArgumentType.getString(ctx, "ticker"),
+                            IntegerArgumentType.getInteger(ctx, "qty"),
+                            false)))))
                 .then(literal("limitbuy").then(argument("ticker", StringArgumentType.word())
                     .then(argument("qty", IntegerArgumentType.integer(1))
                         .then(argument("price", DoubleArgumentType.doubleArg(0))
@@ -85,6 +97,27 @@ public class PlayerCommands {
                 .then(literal("pnl").executes(ctx -> sendPortfolio(ctx.getSource())))
             )
         );
+    }
+
+    private static int trade(ServerCommandSource src, String ticker, int qty, boolean isBuy) {
+        if (!(src.getEntity() instanceof ServerPlayerEntity p)) return 0;
+        if (!nearTradingPost(p, src)) return 0;
+        if (!MarketEngine.getInstance().isMarketOpen()) {
+            src.sendError(Text.literal("§cThe market is closed. Trading resumes at dawn.")); return 0;
+        }
+        String t = ticker.toUpperCase();
+        if (StockRegistry.get(t) == null) { src.sendError(Text.literal("Unknown ticker: " + t)); return 0; }
+        var ps = MarketPersistentState.getOrCreate(src.getServer().getOverworld());
+        boolean ok = isBuy
+                ? MarketEngine.getInstance().executeMarketBuy(t, qty, p.getUuid(), ps)
+                : MarketEngine.getInstance().executeMarketSell(t, qty, p.getUuid(), ps);
+        StockState ss    = MarketEngine.getInstance().getState(t);
+        double     price = ss != null ? ss.getCurrentPrice() : 0;
+        src.sendFeedback(() -> Text.literal(ok
+                ? String.format("§a%s %d %s @ §e%.1f¢", isBuy ? "Bought" : "Sold", qty, t, price)
+                : (isBuy ? "§cInsufficient funds or no shares available." : "§cNot enough shares.")), false);
+        if (ok) com.quantcraft.network.ModPackets.sendPortfolioToClient(p);
+        return ok ? 1 : 0;
     }
 
     private static int balance(ServerCommandSource src) {
@@ -180,11 +213,12 @@ public class PlayerCommands {
         var port = ps.getPortfolio(p.getUuid());
         if (side == LimitOrder.Side.BUY) {
             double cost = limitPrice * qty;
-            if (port.getBalance() < cost) {
-                src.sendError(Text.literal(String.format("Need §e%.1f¢§c, have §e%.1f¢", cost, port.getBalance())));
+            double tax  = cost * com.quantcraft.config.QuantCraftConfig.getTaxRate();
+            if (port.getBalance() < cost + tax) {
+                src.sendError(Text.literal(String.format("Need §e%.1f¢§c (incl. tax), have §e%.1f¢", cost + tax, port.getBalance())));
                 return 0;
             }
-            port.deductBalance(cost); ps.markDirty();
+            port.deductBalance(cost + tax); ps.markDirty();
         } else {
             if (port.getHolding(t) < qty) { src.sendError(Text.literal("You don't own " + qty + " shares of " + t)); return 0; }
             port.removeShares(t, qty); ps.markDirty();
@@ -319,8 +353,9 @@ public class PlayerCommands {
         StockState      ss  = MarketEngine.getInstance().getState(t);
         if (def == null || ss == null) { src.sendError(Text.literal("Unknown ticker: " + t)); return 0; }
         LiquidityBot bot = MarketEngine.getInstance().getBot(t);
-        if (bot == null || bot.getShareReserve() < qty) {
-            src.sendError(Text.literal("§cNot enough shares available to borrow.")); return 0;
+        int maxBorrow = bot != null ? bot.getShareReserve() / 4 : 0;
+        if (bot == null || qty > maxBorrow) {
+            src.sendError(Text.literal(String.format("§cMax borrowable: %d shares (25%% of liquidity).", maxBorrow))); return 0;
         }
         var ps = MarketPersistentState.getOrCreate(src.getServer().getOverworld());
         // Check player doesn't already have a short on this ticker
@@ -328,16 +363,15 @@ public class PlayerCommands {
                 .anyMatch(sp -> sp.getTicker().equals(t));
         if (alreadyShort) { src.sendError(Text.literal("§cYou already have an open short on " + t + ".")); return 0; }
         double price  = ss.getCurrentPrice();
-        double margin = price * qty * 0.5;
+        double margin = price * qty;
         var port = ps.getPortfolio(p.getUuid());
         if (port.getBalance() < margin) {
-            src.sendError(Text.literal(String.format("§cNeed §e%.1f¢§c margin, have §e%.1f¢", margin, port.getBalance())));
+            src.sendError(Text.literal(String.format("§cNeed §e%.1f¢§c margin (100%%), have §e%.1f¢", margin, port.getBalance())));
             return 0;
         }
         port.deductBalance(margin);
-        port.addBalance(price * qty);          // proceeds from the borrowed-share sale
         bot.setShareReserve(bot.getShareReserve() - qty);
-        ss.adjustSharesHeld(+qty);           // shares enter the float (sold to market)
+        ss.adjustSharesHeld(+qty);
         ShortPosition sp = new ShortPosition(p.getUuid(), t, qty, price, margin, src.getServer().getTicks());
         ps.addShort(p.getUuid(), sp);
         ps.markDirty();
@@ -360,33 +394,25 @@ public class PlayerCommands {
         if (sp == null) { src.sendError(Text.literal("No open short for " + t + ".")); return 0; }
         StockState ss = MarketEngine.getInstance().getState(t);
         if (ss == null) { src.sendError(Text.literal("Unknown ticker: " + t)); return 0; }
-        double price = ss.getCurrentPrice();
-        // Check float has room (bot buys back)
-        StockDefinition def = StockRegistry.get(t);
+        double price   = ss.getCurrentPrice();
         LiquidityBot bot = MarketEngine.getInstance().getBot(t);
-        double pnl     = sp.getCurrentPnL(price);
         double buyback = price * sp.getShares();
+        double fee     = sp.getAccruedFee();
+        // Margin covers buyback + fees. Remainder is returned to player.
+        double returned = Math.max(0, sp.getMarginReserve() - buyback - fee);
+        double pnl     = sp.getCurrentPnL(price);
         var port = ps.getPortfolio(p.getUuid());
-        if (port.getBalance() < buyback) {
-            src.sendError(Text.literal(String.format(
-                    "§cInsufficient funds to cover. You need §e%.1f¢§c but have §e%.1f¢§c. §7Sell assets or wait for a margin call.",
-                    buyback, port.getBalance())));
-            return 0;
-        }
-        port.deductBalance(buyback);
-        double fee            = sp.getAccruedFee();
-        double marginReturned = Math.max(0, sp.getMarginReserve() - fee);
-        port.addBalance(marginReturned);
+        port.addBalance(returned);
         if (bot != null) bot.setShareReserve(bot.getShareReserve() + sp.getShares());
         ss.adjustSharesHeld(-sp.getShares());
         ps.removeShort(p.getUuid(), sp);
         ps.markDirty();
         final double displayPnl = pnl;
         final double displayFee = fee;
-        final double displayMargin = marginReturned;
+        final double displayReturned = returned;
         src.sendFeedback(() -> Text.literal(String.format(
-                "§aShort closed: §e%s§a. PnL: %s%.1f¢§a. Margin returned: §e%.1f¢ §7Borrow fees paid: §c%.2f¢",
-                t, displayPnl >= 0 ? "§a+" : "§c", displayPnl, displayMargin, displayFee)), false);
+                "§aShort closed: §e%s§a. PnL: %s%.1f¢§a. Returned: §e%.1f¢ §7Borrow fees: §c%.2f¢",
+                t, displayPnl >= 0 ? "§a+" : "§c", displayPnl, displayReturned, displayFee)), false);
         return 1;
     }
 

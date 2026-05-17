@@ -25,6 +25,8 @@ public final class OtcTradeManager {
                           double pricePerShare,
                           MinecraftServer server) {
 
+        if (!MarketEngine.getInstance().isMarketOpen())
+            return "§cThe market is closed. Trading resumes at dawn.";
         if (proposer.getUuid().equals(target.getUuid()))
             return "§cYou cannot offer a trade to yourself.";
         if (shares <= 0)
@@ -132,7 +134,7 @@ public final class OtcTradeManager {
         }
 
         seller.removeShares(offer.getTicker(), offer.getShares());
-        seller.addBalance(cost - tax);
+        seller.addBalance(cost);
 
         buyer.addShares(offer.getTicker(), offer.getShares(), offer.getPricePerShare());
         buyer.deductBalance(cost + tax);

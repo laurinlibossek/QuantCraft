@@ -33,11 +33,11 @@ public class ModPackets {
             int  count = buf.readInt();
             if (count < 0 || count > QuotronBlockEntity.MAX_TRACKED) return;
             List<String> tickers = new ArrayList<>();
-            for (int i = 0; i < count; i++) tickers.add(buf.readString());
+            for (int i = 0; i < count; i++) tickers.add(buf.readString(32));
             server.execute(() -> {
-                BlockPos bp    = BlockPos.fromLong(pos);
-                var      world = server.getOverworld();
-                if (world.getBlockEntity(bp) instanceof QuotronBlockEntity qbe)
+                BlockPos bp = BlockPos.fromLong(pos);
+                if (player.getBlockPos().getSquaredDistance(bp) > 64) return;
+                if (player.getServerWorld().getBlockEntity(bp) instanceof QuotronBlockEntity qbe)
                     qbe.setTrackedTickers(tickers);
             });
         });

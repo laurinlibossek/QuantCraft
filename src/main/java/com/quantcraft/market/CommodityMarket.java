@@ -4,7 +4,7 @@ import com.quantcraft.persistence.MarketPersistentState;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
-import net.minecraft.world.World;
+
 
 public class CommodityMarket {
     private static final CommodityMarket INSTANCE = new CommodityMarket();
@@ -62,18 +62,14 @@ public class CommodityMarket {
         }
 
         double grossGain = pricePerItem * effectiveQty;
-        boolean inEnd    = player.getWorld().getRegistryKey().equals(World.END);
-        double tax       = inEnd ? 0.0 : grossGain * TAX_RATE;
+        double tax       = grossGain * TAX_RATE;
         double netGain   = grossGain - tax;
 
         removeItems(player, def, effectiveQty);
         ss.applyEventPressure(-effectiveQty * def.basePrice() / def.totalShares() * 2.0);
         ps.getPortfolio(player.getUuid()).addBalance(netGain);
         ps.addDailyExchangeEarnings(player.getUuid(), grossGain);
-        String msg = inEnd
-                ? String.format("§aSold %d %s for §e%.1f¢ §d(tax-free zone)", effectiveQty, ticker, netGain)
-                : String.format("§aSold %d %s for §e%.1f¢ §7(5%% tax applied)", effectiveQty, ticker, netGain);
-        player.sendMessage(Text.literal(msg), true);
+        player.sendMessage(Text.literal(String.format("§aSold %d %s for §e%.1f¢ §7(5%% tax)", effectiveQty, ticker, netGain)), true);
         ps.markDirty();
         return true;
     }
