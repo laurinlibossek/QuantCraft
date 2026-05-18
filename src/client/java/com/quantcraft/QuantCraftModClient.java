@@ -5,7 +5,7 @@ import com.quantcraft.hud.TickerHudOverlay;
 import com.quantcraft.hud.TickerPins;
 import com.quantcraft.registry.ModScreenHandlerTypes;
 import com.quantcraft.screen.CommodityExchangeScreen;
-import com.quantcraft.screen.TradingPostScreen;
+import com.quantcraft.screen.StockExchangeScreen;
 import com.quantcraft.network.ModPacketsClient;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
@@ -16,7 +16,7 @@ import net.minecraft.text.Text;
 public class QuantCraftModClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
-        HandledScreens.register(ModScreenHandlerTypes.TRADING_POST,       TradingPostScreen::new);
+        HandledScreens.register(ModScreenHandlerTypes.STOCK_EXCHANGE,     StockExchangeScreen::new);
         HandledScreens.register(ModScreenHandlerTypes.COMMODITY_EXCHANGE, CommodityExchangeScreen::new);
         ModPacketsClient.registerClientReceivers();
         TickerHudOverlay.register();

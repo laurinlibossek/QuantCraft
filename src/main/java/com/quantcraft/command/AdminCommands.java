@@ -18,9 +18,9 @@ public class AdminCommands {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, env) ->
             dispatcher.register(literal("qcadmin").requires(src -> src.hasPermissionLevel(2))
                 .then(literal("crash").then(argument("target", StringArgumentType.word())
-                    .executes(ctx -> pressure(ctx.getSource(), StringArgumentType.getString(ctx, "target"), -50.0, "CRASH"))))
+                    .executes(ctx -> pressure(ctx.getSource(), StringArgumentType.getString(ctx, "target"), -200.0, "CRASH"))))
                 .then(literal("boom").then(argument("target", StringArgumentType.word())
-                    .executes(ctx -> pressure(ctx.getSource(), StringArgumentType.getString(ctx, "target"), +50.0, "BOOM"))))
+                    .executes(ctx -> pressure(ctx.getSource(), StringArgumentType.getString(ctx, "target"), +200.0, "BOOM"))))
                 .then(literal("setprice").then(argument("ticker", StringArgumentType.word())
                     .then(argument("price", DoubleArgumentType.doubleArg(0))
                         .executes(ctx -> setPrice(ctx.getSource(),

@@ -1,6 +1,6 @@
 package com.quantcraft.block;
 
-import com.quantcraft.blockentity.TradingPostBlockEntity;
+import com.quantcraft.blockentity.StockExchangeBlockEntity;
 import com.quantcraft.item.DollarBillItem;
 import com.quantcraft.persistence.MarketPersistentState;
 import com.mojang.serialization.MapCodec;
@@ -15,15 +15,15 @@ import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
-public class TradingPostBlock extends BlockWithEntity {
-    public TradingPostBlock(Settings s) { super(s); }
+public class StockExchangeBlock extends BlockWithEntity {
+    public StockExchangeBlock(Settings s) { super(s); }
 
     @Override public MapCodec<? extends BlockWithEntity> getCodec() { throw new UnsupportedOperationException(); }
 
     @Override public BlockRenderType getRenderType(BlockState s) { return BlockRenderType.MODEL; }
 
     @Override public BlockEntity createBlockEntity(BlockPos pos, BlockState state) {
-        return new TradingPostBlockEntity(pos, state);
+        return new StockExchangeBlockEntity(pos, state);
     }
 
     @Override public ActionResult onUse(BlockState state, World world, BlockPos pos,
@@ -53,7 +53,7 @@ public class TradingPostBlock extends BlockWithEntity {
         }
 
         BlockEntity be = world.getBlockEntity(pos);
-        if (be instanceof TradingPostBlockEntity tp) player.openHandledScreen(tp);
+        if (be instanceof StockExchangeBlockEntity se) player.openHandledScreen(se);
         return ActionResult.SUCCESS;
     }
 }

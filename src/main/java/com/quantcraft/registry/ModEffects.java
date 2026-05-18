@@ -12,7 +12,7 @@ public class ModEffects {
 
     public static void register() {
         Registry.register(Registries.STATUS_EFFECT,
-                new Identifier(QuantCraftMod.MOD_ID, "cocaine_high"),
+                new Identifier(QuantCraftMod.MOD_ID, "wall_street_rush"),
                 COCAINE_HIGH);
     }
 }

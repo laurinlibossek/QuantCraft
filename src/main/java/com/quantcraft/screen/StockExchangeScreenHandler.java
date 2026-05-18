@@ -14,7 +14,7 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import java.util.*;
 
-public class TradingPostScreenHandler extends ScreenHandler {
+public class StockExchangeScreenHandler extends ScreenHandler {
     // Button IDs: 0..N-1 = select row
     // 100=market buy 1, 101=market sell 1, 102=market buy 64, 103=market sell 64
 
@@ -44,8 +44,8 @@ public class TradingPostScreenHandler extends ScreenHandler {
         @Override public int size()              { return 1; }
     };
 
-    public TradingPostScreenHandler(int syncId, PlayerInventory inv, PacketByteBuf buf) {
-        super(ModScreenHandlerTypes.TRADING_POST, syncId);
+    public StockExchangeScreenHandler(int syncId, PlayerInventory inv, PacketByteBuf buf) {
+        super(ModScreenHandlerTypes.STOCK_EXCHANGE, syncId);
         addProperties(props);
         if (buf.readableBytes() > 0) readBuf(buf);
     }
@@ -89,10 +89,10 @@ public class TradingPostScreenHandler extends ScreenHandler {
                 openShorts.add(new ShortDisplayData(tk, shares, open, cur, pnl, fee, margin));
             }
         } catch (Exception e) {
-            QuantCraftMod.LOGGER.warn("[QuantCraft] TradingPostScreenHandler failed to read opening data: {}", e.getMessage());
+            QuantCraftMod.LOGGER.warn("[QuantCraft] StockExchangeScreenHandler failed to read opening data: {}", e.getMessage());
         }
         if (stocks.isEmpty()) {
-            QuantCraftMod.LOGGER.warn("[QuantCraft] TradingPostScreenHandler: stocks list is empty after readBuf — data may not have arrived.");
+            QuantCraftMod.LOGGER.warn("[QuantCraft] StockExchangeScreenHandler: stocks list is empty after readBuf — data may not have arrived.");
         }
     }
 
@@ -108,23 +108,34 @@ public class TradingPostScreenHandler extends ScreenHandler {
                 sp.sendMessage(Text.literal("§cNo funds to withdraw."), false);
                 return false;
             }
+
+            // FIXED: Use insertStack() which only targets main inventory (slots 0-35), not armor/offhand
             int given = 0;
-            for (int slot = 0; slot < sp.getInventory().size() && given < amount; slot++) {
-                ItemStack existing = sp.getInventory().getStack(slot);
-                if (existing.isEmpty()) {
-                    int stackSize = Math.min(64, amount - given);
-                    sp.getInventory().setStack(slot, new ItemStack(ModItems.DOLLAR_BILL, stackSize));
-                    given += stackSize;
-                } else if (existing.getItem() == ModItems.DOLLAR_BILL && existing.getCount() < 64) {
-                    int add = Math.min(64 - existing.getCount(), amount - given);
-                    existing.increment(add);
-                    given += add;
+            while (given < amount) {
+                int stackSize = Math.min(64, amount - given);
+                ItemStack dollarStack = new ItemStack(ModItems.DOLLAR_BILL, stackSize);
+
+                // Use insertStack() which only targets main inventory (slots 0-35)
+                if (!sp.getInventory().insertStack(dollarStack)) {
+                    // No more space in main inventory
+                    break;
+                }
+
+                // insertStack modifies the stack, so check how much was actually inserted
+                int inserted = stackSize - dollarStack.getCount();
+                given += inserted;
+
+                if (inserted < stackSize) {
+                    // Partial insert, inventory is full
+                    break;
                 }
             }
+
             if (given == 0) {
-                sp.sendMessage(Text.literal("§cInventory full — no space for dollar bills."), false);
+                sp.sendMessage(Text.literal("§cNo inventory space."), false);
                 return false;
             }
+
             port.deductBalance(given);
             ps.markDirty();
             sp.sendMessage(Text.literal(String.format(

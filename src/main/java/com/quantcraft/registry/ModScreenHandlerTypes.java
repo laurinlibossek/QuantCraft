@@ -8,12 +8,12 @@ import net.minecraft.screen.ScreenHandlerType;
 import net.minecraft.util.Identifier;
 
 public class ModScreenHandlerTypes {
-    public static ScreenHandlerType<TradingPostScreenHandler>       TRADING_POST;
+    public static ScreenHandlerType<StockExchangeScreenHandler>     STOCK_EXCHANGE;
     public static ScreenHandlerType<CommodityExchangeScreenHandler> COMMODITY_EXCHANGE;
 
     public static void register() {
-        TRADING_POST = Registry.register(Registries.SCREEN_HANDLER, id("trading_post"),
-                new ExtendedScreenHandlerType<>(TradingPostScreenHandler::new));
+        STOCK_EXCHANGE = Registry.register(Registries.SCREEN_HANDLER, id("stock_exchange"),
+                new ExtendedScreenHandlerType<>(StockExchangeScreenHandler::new));
 
         COMMODITY_EXCHANGE = Registry.register(Registries.SCREEN_HANDLER, id("commodity_exchange"),
                 new ExtendedScreenHandlerType<>(CommodityExchangeScreenHandler::new));

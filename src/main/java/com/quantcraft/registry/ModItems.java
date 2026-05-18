@@ -16,7 +16,7 @@ import java.util.List;
 
 public class ModItems {
     public static final Item DOLLAR_BILL       = new DollarBillItem(new Item.Settings().maxCount(64));
-    public static final Item TRADING_POST      = new BlockItem(ModBlocks.TRADING_POST, new Item.Settings()) {
+    public static final Item STOCK_EXCHANGE    = new BlockItem(ModBlocks.STOCK_EXCHANGE, new Item.Settings()) {
         @Override public void appendTooltip(ItemStack s, World w, List<Text> t, TooltipContext c) {
             t.add(Text.literal("The QuantCraft stock exchange. Buy and sell shares,").formatted(Formatting.GRAY));
             t.add(Text.literal("check the news, and track your portfolio.").formatted(Formatting.GRAY));
@@ -50,7 +50,7 @@ public class ModItems {
 
     public static void register() {
         reg("dollar_bill",                  DOLLAR_BILL);
-        reg("trading_post",                 TRADING_POST);
+        reg("stock_exchange",               STOCK_EXCHANGE);
         reg("commodity_exchange",           COMMODITY_EXCHANGE);
         reg("quotron",                      QUOTRON);
         reg("sealed_newspaper",             SEALED_NEWSPAPER);
