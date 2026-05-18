@@ -188,16 +188,16 @@ public class PlayerCommands {
 
     private static final int TRADING_POST_RANGE = 8;
 
-    /** Returns true if the player is within range of a Trading Post, sending an error message if not. */
+    /** Returns true if the player is within range of a Stock Exchange, sending an error message if not. */
     private static boolean nearTradingPost(ServerPlayerEntity p, ServerCommandSource src) {
         World world = p.getWorld();
         BlockPos center = p.getBlockPos();
         for (int dx = -TRADING_POST_RANGE; dx <= TRADING_POST_RANGE; dx++)
             for (int dy = -3; dy <= 3; dy++)
                 for (int dz = -TRADING_POST_RANGE; dz <= TRADING_POST_RANGE; dz++)
-                    if (world.getBlockState(center.add(dx, dy, dz)).getBlock() == ModBlocks.TRADING_POST)
+                    if (world.getBlockState(center.add(dx, dy, dz)).getBlock() == ModBlocks.STOCK_EXCHANGE)
                         return true;
-        src.sendError(Text.literal("§cYou must be near a Trading Post to do that."));
+        src.sendError(Text.literal("§cYou must be near a Stock Exchange to do that."));
         return false;
     }
 

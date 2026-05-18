@@ -2,7 +2,7 @@ package com.quantcraft.screen;
 
 import com.quantcraft.market.*;
 import com.quantcraft.network.ModPacketsClient;
-import com.quantcraft.screen.TradingPostScreenHandler.StockDisplayData;
+import com.quantcraft.screen.StockExchangeScreenHandler.StockDisplayData;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -10,7 +10,7 @@ import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.text.Text;
 import java.util.*;
 
-public class TradingPostScreen extends HandledScreen<TradingPostScreenHandler> {
+public class StockExchangeScreen extends HandledScreen<StockExchangeScreenHandler> {
     private static final int BG    = 0xFF1a1a2e;
     private static final int PANEL = 0xFF16213e;
     private static final int GOLD  = 0xFFe2b96f;
@@ -23,7 +23,7 @@ public class TradingPostScreen extends HandledScreen<TradingPostScreenHandler> {
 
     private int scroll = 0, activeTab = 0;
 
-    public TradingPostScreen(TradingPostScreenHandler h, PlayerInventory inv, Text title) {
+    public StockExchangeScreen(StockExchangeScreenHandler h, PlayerInventory inv, Text title) {
         super(h, inv, title);
         backgroundWidth  = 330;
         backgroundHeight = 230;

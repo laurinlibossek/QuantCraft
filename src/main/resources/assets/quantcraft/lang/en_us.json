@@ -1,5 +1,5 @@
 {
-  "block.quantcraft.trading_post":       "Trading Post",
+  "block.quantcraft.stock_exchange":     "Stock Exchange",
   "block.quantcraft.commodity_exchange": "Commodity Exchange",
   "block.quantcraft.quotron":            "Quotron Terminal",
   "item.quantcraft.dollar_bill":         "Dollar Bill",
@@ -13,8 +13,9 @@
   "item.quantcraft.newspaper_arcane_anomaly":    "The Arcane Observer — Arcane Anomaly",
   "item.quantcraft.newspaper_livestock_plague":  "The Overworld Times — Livestock Plague",
   "item.quantcraft.newspaper_emerald_cartel":    "The Village Gazette — Emerald Cartel",
-  "container.quantcraft.trading_post":       "Trading Post",
+  "container.quantcraft.stock_exchange":     "Stock Exchange",
   "container.quantcraft.commodity_exchange": "Commodity Exchange",
   "itemGroup.quantcraft":         "QuantCraft",
-  "item.quantcraft.cocaine":      "Cocaine"
+  "item.quantcraft.cocaine":      "Cocaine",
+  "effect.quantcraft.wall_street_rush": "Wall Street Rush"
 }

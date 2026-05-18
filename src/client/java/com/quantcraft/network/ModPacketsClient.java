@@ -48,7 +48,7 @@ public class ModPacketsClient {
             }
             client.execute(() -> {
                 incoming.forEach((t, v) -> ClientMarketCache.update(t, v[0], v[1]));
-                if (client.currentScreen instanceof TradingPostScreen tps)
+                if (client.currentScreen instanceof StockExchangeScreen tps)
                     tps.onMarketUpdate(ClientMarketCache.getAll());
             });
         });
@@ -76,7 +76,7 @@ public class ModPacketsClient {
                 avgCosts.put(tk, buf.readDouble());
             }
             client.execute(() -> {
-                if (client.currentScreen instanceof TradingPostScreen tps) {
+                if (client.currentScreen instanceof StockExchangeScreen tps) {
                     tps.onPortfolioUpdate(balance, holdings);
                 } else if (client.currentScreen instanceof CommodityExchangeScreen ces) {
                     ces.onPortfolioUpdate(balance);

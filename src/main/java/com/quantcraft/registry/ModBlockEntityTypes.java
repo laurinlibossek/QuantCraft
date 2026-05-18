@@ -8,13 +8,13 @@ import net.minecraft.registry.*;
 import net.minecraft.util.Identifier;
 
 public class ModBlockEntityTypes {
-    public static BlockEntityType<TradingPostBlockEntity>       TRADING_POST;
+    public static BlockEntityType<StockExchangeBlockEntity>     STOCK_EXCHANGE;
     public static BlockEntityType<CommodityExchangeBlockEntity> COMMODITY_EXCHANGE;
     public static BlockEntityType<QuotronBlockEntity>           QUOTRON;
 
     public static void register() {
-        TRADING_POST = Registry.register(Registries.BLOCK_ENTITY_TYPE, id("trading_post"),
-                FabricBlockEntityTypeBuilder.create(TradingPostBlockEntity::new, ModBlocks.TRADING_POST).build());
+        STOCK_EXCHANGE = Registry.register(Registries.BLOCK_ENTITY_TYPE, id("stock_exchange"),
+                FabricBlockEntityTypeBuilder.create(StockExchangeBlockEntity::new, ModBlocks.STOCK_EXCHANGE).build());
 
         COMMODITY_EXCHANGE = Registry.register(Registries.BLOCK_ENTITY_TYPE, id("commodity_exchange"),
                 FabricBlockEntityTypeBuilder.create(CommodityExchangeBlockEntity::new, ModBlocks.COMMODITY_EXCHANGE).build());

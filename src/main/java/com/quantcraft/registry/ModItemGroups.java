@@ -10,11 +10,11 @@ import net.minecraft.util.Identifier;
 
 public class ModItemGroups {
     public static final ItemGroup QUANTCRAFT_GROUP = FabricItemGroup.builder()
-            .icon(() -> new ItemStack(ModItems.TRADING_POST))
+            .icon(() -> new ItemStack(ModItems.STOCK_EXCHANGE))
             .displayName(Text.translatable("itemGroup.quantcraft"))
             .entries((context, entries) -> {
                 entries.add(ModItems.DOLLAR_BILL);
-                entries.add(ModItems.TRADING_POST);
+                entries.add(ModItems.STOCK_EXCHANGE);
                 entries.add(ModItems.COMMODITY_EXCHANGE);
                 entries.add(ModItems.QUOTRON);
                 entries.add(ModItems.NP_DIAMOND_DISCOVERY);

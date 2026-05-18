@@ -41,7 +41,9 @@ public class MilkMixin {
     private void snapshotCrashEffects(ItemStack stack, World world, LivingEntity user,
                                       CallbackInfoReturnable<ItemStack> cir) {
         if (world.isClient) return;
-        if (!(user instanceof PlayerEntity player)) return;
+
+        // FIXED: Check ServerPlayerEntity type early to prevent crashes
+        if (!(user instanceof ServerPlayerEntity player)) return;
         if (!CocaineCrashTracker.CRASHING.contains(player.getUuid())) return;
 
         List<StatusEffectInstance> snapshot = CRASH_SNAPSHOT.get();
@@ -64,16 +66,30 @@ public class MilkMixin {
     private void reapplyCrashEffects(ItemStack stack, World world, LivingEntity user,
                                      CallbackInfoReturnable<ItemStack> cir) {
         if (world.isClient) return;
-        if (!(user instanceof ServerPlayerEntity sp)) return;
 
         List<StatusEffectInstance> snapshot = CRASH_SNAPSHOT.get();
-        if (snapshot.isEmpty()) return;
+        if (snapshot.isEmpty()) {
+            CRASH_SNAPSHOT.remove();
+            return;
+        }
+
+        // FIXED: Validate ServerPlayerEntity and connection
+        if (!(user instanceof ServerPlayerEntity sp)) {
+            CRASH_SNAPSHOT.remove();
+            return;
+        }
+
+        // FIXED: Validate player is still connected
+        if (sp.isDisconnected() || sp.getServer() == null) {
+            CRASH_SNAPSHOT.remove();
+            return;
+        }
 
         for (StatusEffectInstance instance : snapshot) {
             sp.addStatusEffect(instance);
         }
-        snapshot.clear();
+        CRASH_SNAPSHOT.remove();
 
-        sp.sendMessage(Text.literal("§c...unfortunately, that doesn't work here. §o(Trust us, we tried)"), true);
+        sp.sendMessage(Text.literal("§cThe crash lingers..."), true);
     }
 }

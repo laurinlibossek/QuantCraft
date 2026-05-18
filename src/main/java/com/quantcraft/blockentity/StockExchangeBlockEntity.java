@@ -3,7 +3,7 @@ package com.quantcraft.blockentity;
 import com.quantcraft.market.*;
 import com.quantcraft.persistence.MarketPersistentState;
 import com.quantcraft.registry.ModBlockEntityTypes;
-import com.quantcraft.screen.TradingPostScreenHandler;
+import com.quantcraft.screen.StockExchangeScreenHandler;
 import io.netty.buffer.Unpooled;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
 import net.minecraft.block.BlockState;
@@ -16,12 +16,12 @@ import net.minecraft.text.Text;
 import net.minecraft.util.math.BlockPos;
 import java.util.Map;
 
-public class TradingPostBlockEntity extends BlockEntity implements ExtendedScreenHandlerFactory {
-    public TradingPostBlockEntity(BlockPos pos, BlockState state) {
-        super(ModBlockEntityTypes.TRADING_POST, pos, state);
+public class StockExchangeBlockEntity extends BlockEntity implements ExtendedScreenHandlerFactory {
+    public StockExchangeBlockEntity(BlockPos pos, BlockState state) {
+        super(ModBlockEntityTypes.STOCK_EXCHANGE, pos, state);
     }
 
-    @Override public Text getDisplayName() { return Text.translatable("container.quantcraft.trading_post"); }
+    @Override public Text getDisplayName() { return Text.translatable("container.quantcraft.stock_exchange"); }
 
     @Override
     public void writeScreenOpeningData(ServerPlayerEntity player, PacketByteBuf buf) {
@@ -82,6 +82,6 @@ public class TradingPostBlockEntity extends BlockEntity implements ExtendedScree
 
     @Override
     public ScreenHandler createMenu(int syncId, PlayerInventory inv, PlayerEntity player) {
-        return new TradingPostScreenHandler(syncId, inv, new PacketByteBuf(Unpooled.buffer()));
+        return new StockExchangeScreenHandler(syncId, inv, new PacketByteBuf(Unpooled.buffer()));
     }
 }
