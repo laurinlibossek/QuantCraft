@@ -18,10 +18,13 @@ public class AdminCommands {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, env) ->
             dispatcher.register(literal("qcadmin").requires(src -> src.hasPermissionLevel(2))
                 .then(literal("crash").then(argument("target", StringArgumentType.word())
+                    .suggests(CommandSuggestions.TICKER_OR_SECTOR)
                     .executes(ctx -> pressure(ctx.getSource(), StringArgumentType.getString(ctx, "target"), -200.0, "CRASH"))))
                 .then(literal("boom").then(argument("target", StringArgumentType.word())
+                    .suggests(CommandSuggestions.TICKER_OR_SECTOR)
                     .executes(ctx -> pressure(ctx.getSource(), StringArgumentType.getString(ctx, "target"), +200.0, "BOOM"))))
                 .then(literal("setprice").then(argument("ticker", StringArgumentType.word())
+                    .suggests(CommandSuggestions.TICKER)
                     .then(argument("price", DoubleArgumentType.doubleArg(0))
                         .executes(ctx -> setPrice(ctx.getSource(),
                             StringArgumentType.getString(ctx, "ticker"),
@@ -47,7 +50,6 @@ public class AdminCommands {
                     .then(literal("all")       .executes(ctx -> reset(ctx.getSource(), true,  true))))
                 .then(literal("freeze")  .executes(ctx -> setFrozen(ctx.getSource(), true)))
                 .then(literal("unfreeze").executes(ctx -> setFrozen(ctx.getSource(), false)))
-                .then(literal("tick")    .executes(ctx -> forceTick(ctx.getSource())))
                 .then(literal("multiplier").then(argument("value", FloatArgumentType.floatArg(0.1f, 10f))
                     .executes(ctx -> {
                         float v = FloatArgumentType.getFloat(ctx, "value");
@@ -56,20 +58,23 @@ public class AdminCommands {
                         return 1;
                     })))
                 .then(literal("event").then(argument("event", StringArgumentType.word())
+                    .suggests(CommandSuggestions.EVENT_TYPE)
                     .executes(ctx -> fireEvent(ctx.getSource(), StringArgumentType.getString(ctx, "event")))))
                 .then(literal("info").then(argument("ticker", StringArgumentType.word())
+                    .suggests(CommandSuggestions.TICKER)
                     .executes(ctx -> stockInfo(ctx.getSource(), StringArgumentType.getString(ctx, "ticker")))))
                 .then(literal("listplayers").executes(ctx -> listPlayers(ctx.getSource())))
+                .then(literal("season")
+                    .executes(ctx -> seasonInfo(ctx.getSource()))
+                    .then(literal("set").then(argument("phase", StringArgumentType.word())
+                        .suggests((ctx, b) -> net.minecraft.command.CommandSource.suggestMatching(
+                            java.util.Arrays.stream(com.quantcraft.market.MarketSeason.values())
+                                .map(s -> s.name().toLowerCase()), b))
+                        .executes(ctx -> seasonSet(ctx.getSource(), StringArgumentType.getString(ctx, "phase"))))))
                 .then(literal("cancelorders").then(argument("player", EntityArgumentType.player())
                     .executes(ctx -> cancelOrders(ctx.getSource(), EntityArgumentType.getPlayer(ctx, "player")))))
-                .then(literal("floor").then(argument("ticker", StringArgumentType.word())
-                    .then(argument("price", DoubleArgumentType.doubleArg(0))
-                        .executes(ctx -> {
-                            // priceFloor is final in record — this command documents the intent but can't mutate it
-                            ctx.getSource().sendFeedback(() -> Text.literal("[QCAdmin] Note: price floor is set at definition time only."), false);
-                            return 1;
-                        }))))
                 .then(literal("bot").then(argument("ticker", StringArgumentType.word())
+                    .suggests(CommandSuggestions.TICKER)
                     .then(literal("enable") .executes(ctx -> botEnabled(ctx.getSource(), StringArgumentType.getString(ctx, "ticker"), true)))
                     .then(literal("disable").executes(ctx -> botEnabled(ctx.getSource(), StringArgumentType.getString(ctx, "ticker"), false)))
                     .then(literal("info")   .executes(ctx -> botInfo(ctx.getSource(), StringArgumentType.getString(ctx, "ticker"))))
@@ -153,13 +158,6 @@ public class AdminCommands {
         return 1;
     }
 
-    private static int forceTick(ServerCommandSource src) {
-        var ps = MarketPersistentState.getOrCreate(src.getServer().getOverworld());
-        MarketEngine.getInstance().tick(src.getServer(), ps);
-        ps.markDirty();
-        src.sendFeedback(() -> Text.literal("[QCAdmin] Tick forced."), false);
-        return 1;
-    }
 
     private static int fireEvent(ServerCommandSource src, String name) {
         try {
@@ -229,6 +227,31 @@ public class AdminCommands {
                 "[QCAdmin] Bot %s | En:%b | Shares:%,d | Cash:%.1f | Spread:%.1f%% | Target:%.2f",
                 ticker.toUpperCase(), b.isEnabled(), b.getShareReserve(),
                 b.getCashReserve(), b.getSpreadPct() * 100, b.getTargetPriceMid())), false);
+        return 1;
+    }
+
+    private static int seasonInfo(ServerCommandSource src) {
+        MarketEngine eng    = MarketEngine.getInstance();
+        com.quantcraft.market.MarketSeason season = eng.getCurrentSeason();
+        long elapsed   = eng.getSeasonElapsedTicks(src.getServer());
+        long remaining = Math.max(0, MarketEngine.PHASE_LENGTH_TICKS - elapsed);
+        src.sendFeedback(() -> Text.literal(String.format(
+                "[QCAdmin] Season: %s%s §7| Elapsed: %d ticks | Remaining: %d ticks | Next: %s",
+                season.color, season.displayName, elapsed, remaining, season.next().displayName)), false);
+        return 1;
+    }
+
+    private static int seasonSet(ServerCommandSource src, String phase) {
+        com.quantcraft.market.MarketSeason target;
+        try {
+            target = com.quantcraft.market.MarketSeason.valueOf(phase.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            src.sendError(Text.literal("Unknown phase. Options: recovery, expansion, peak, contraction"));
+            return 0;
+        }
+        var ps = MarketPersistentState.getOrCreate(src.getServer().getOverworld());
+        MarketEngine.getInstance().forceSetSeason(target, src.getServer().getOverworld().getTime(), ps);
+        src.sendFeedback(() -> Text.literal("[QCAdmin] Season forced to: " + target.color + target.displayName), true);
         return 1;
     }
 }

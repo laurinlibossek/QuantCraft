@@ -6,6 +6,7 @@ import com.quantcraft.persistence.MarketPersistentState;
 import com.quantcraft.registry.ModScreenHandlerTypes;
 import net.minecraft.entity.player.*;
 import net.minecraft.network.PacketByteBuf;
+import net.minecraft.network.packet.s2c.play.ScreenHandlerSlotUpdateS2CPacket;
 import net.minecraft.screen.PropertyDelegate;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -70,8 +71,14 @@ public class CommodityExchangeScreenHandler extends ScreenHandler {
             double[] prices = cm.getPrices(ticker);
             sp.sendMessage(Text.literal(String.format("§aBought %d §f%s§a @ §e%.1f¢", qty, ticker, prices[0])), true);
         }
-        // sell success message is sent by CommodityMarket.sellItem (includes tax info)
-        if (ok) ModPackets.sendPortfolioToClient(sp);
+        if (ok) {
+            // Force sync all inventory slots to the client — needed because this handler has no slots
+            for (int s = 0; s < sp.getInventory().size(); s++) {
+                sp.networkHandler.sendPacket(new ScreenHandlerSlotUpdateS2CPacket(
+                        -2, 0, s, sp.getInventory().getStack(s)));
+            }
+            ModPackets.sendPortfolioToClient(sp);
+        }
         return ok;
     }
 

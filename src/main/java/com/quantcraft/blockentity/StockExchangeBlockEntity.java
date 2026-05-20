@@ -78,6 +78,18 @@ public class StockExchangeBlockEntity extends BlockEntity implements ExtendedScr
         } else {
             buf.writeInt(0);
         }
+        if (world != null && world.getServer() != null) {
+            var ps = MarketPersistentState.getOrCreate(world.getServer().getOverworld());
+            var messages = ps.getPlayerMessages(player.getUuid());
+            buf.writeInt(messages.size());
+            for (var msg : messages) {
+                buf.writeLong(msg.timestamp());
+                buf.writeString(msg.text());
+                buf.writeEnumConstant(msg.type());
+            }
+        } else {
+            buf.writeInt(0);
+        }
     }
 
     @Override

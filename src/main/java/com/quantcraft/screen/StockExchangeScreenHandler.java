@@ -4,10 +4,8 @@ import com.quantcraft.QuantCraftMod;
 import com.quantcraft.market.*;
 import com.quantcraft.network.ModPackets;
 import com.quantcraft.persistence.MarketPersistentState;
-import com.quantcraft.registry.ModItems;
 import com.quantcraft.registry.ModScreenHandlerTypes;
 import net.minecraft.entity.player.*;
-import net.minecraft.item.ItemStack;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.screen.*;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -36,6 +34,7 @@ public class StockExchangeScreenHandler extends ScreenHandler {
     public final Map<String,Integer>    playerHoldings = new LinkedHashMap<>();
     public final List<String>           recentNews     = new ArrayList<>();
     public final List<ShortDisplayData> openShorts     = new ArrayList<>();
+    public final List<TradeMessage>     messageHistory = new ArrayList<>();
     private int selectedIndex = 0;
 
     private final PropertyDelegate props = new PropertyDelegate() {
@@ -88,6 +87,13 @@ public class StockExchangeScreenHandler extends ScreenHandler {
                 double margin = buf.readDouble();
                 openShorts.add(new ShortDisplayData(tk, shares, open, cur, pnl, fee, margin));
             }
+            int msgCount = buf.readInt();
+            for (int i = 0; i < msgCount; i++) {
+                long timestamp = buf.readLong();
+                String text = buf.readString();
+                TradeMessage.MessageType type = buf.readEnumConstant(TradeMessage.MessageType.class);
+                messageHistory.add(new TradeMessage(timestamp, text, type));
+            }
         } catch (Exception e) {
             QuantCraftMod.LOGGER.warn("[QuantCraft] StockExchangeScreenHandler failed to read opening data: {}", e.getMessage());
         }
@@ -100,48 +106,7 @@ public class StockExchangeScreenHandler extends ScreenHandler {
     public boolean onButtonClick(PlayerEntity player, int id) {
         if (!(player instanceof ServerPlayerEntity sp)) return false;
         if (id < 100) { selectedIndex = id; props.set(0, id); return true; }
-        if (id == 200) {
-            var ps = MarketPersistentState.getOrCreate(sp.getServer().getOverworld());
-            PlayerPortfolio port = ps.getPortfolio(sp.getUuid());
-            int amount = (int) Math.floor(port.getBalance());
-            if (amount <= 0 || port.getBalance() < 1.0) {
-                sp.sendMessage(Text.literal("§cNo funds to withdraw."), false);
-                return false;
-            }
-
-            // FIXED: Use insertStack() which only targets main inventory (slots 0-35), not armor/offhand
-            int given = 0;
-            while (given < amount) {
-                int stackSize = Math.min(64, amount - given);
-                ItemStack dollarStack = new ItemStack(ModItems.DOLLAR_BILL, stackSize);
-
-                // Use insertStack() which only targets main inventory (slots 0-35)
-                if (!sp.getInventory().insertStack(dollarStack)) {
-                    // No more space in main inventory
-                    break;
-                }
-
-                // insertStack modifies the stack, so check how much was actually inserted
-                int inserted = stackSize - dollarStack.getCount();
-                given += inserted;
-
-                if (inserted < stackSize) {
-                    // Partial insert, inventory is full
-                    break;
-                }
-            }
-
-            if (given == 0) {
-                sp.sendMessage(Text.literal("§cNo inventory space."), false);
-                return false;
-            }
-
-            port.deductBalance(given);
-            ps.markDirty();
-            sp.sendMessage(Text.literal(String.format(
-                    "§aWithdrew §e%d¢ §7(%.1f¢ remaining in account).", given, port.getBalance())), false);
-            return true;
-        }
+        // Withdraw is handled by C2S_WITHDRAW packet (supports custom amounts)
 
         if (!MarketEngine.getInstance().isMarketOpen()) {
             sp.sendMessage(Text.literal("§cThe market is closed. Trading resumes at dawn."), true);
@@ -158,10 +123,19 @@ public class StockExchangeScreenHandler extends ScreenHandler {
                 : MarketEngine.getInstance().executeMarketSell(ticker, qty, player.getUuid(), ps);
         StockState ss    = MarketEngine.getInstance().getState(ticker);
         double     price = ss != null ? ss.getCurrentPrice() : 0;
-        sp.sendMessage(Text.literal(ok
-                ? String.format("§a%s %d %s @ §e%.1f¢", isBuy ? "Bought" : "Sold", qty, ticker, price)
-                : (isBuy ? "§cInsufficient funds or no shares available." : "§cNot enough shares.")), true);
-        if (ok) ModPackets.sendPortfolioToClient(sp);
+        if (ok) {
+            double cost = price * qty;
+            ps.addPlayerMessage(player.getUuid(),
+                String.format("%s %dx %s @ %.1f¢", isBuy ? "Bought" : "Sold", qty, ticker, price),
+                TradeMessage.MessageType.TRADE);
+            sp.sendMessage(Text.literal(String.format("§a%s %d %s @ §e%.1f¢", isBuy ? "Bought" : "Sold", qty, ticker, price)), true);
+            ModPackets.sendPortfolioToClient(sp);
+        } else {
+            ps.addPlayerMessage(player.getUuid(),
+                isBuy ? "Failed: insufficient funds for " + ticker : "Failed: not enough " + ticker + " shares",
+                TradeMessage.MessageType.ERROR);
+            sp.sendMessage(Text.literal(isBuy ? "§cInsufficient funds or no shares available." : "§cNot enough shares."), true);
+        }
         return ok;
     }
 

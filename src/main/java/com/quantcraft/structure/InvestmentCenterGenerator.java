@@ -3,6 +3,7 @@ package com.quantcraft.structure;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import com.quantcraft.registry.ModStructures;
+import net.minecraft.structure.StructurePiecesCollector;
 import net.minecraft.structure.StructureTemplateManager;
 import net.minecraft.util.BlockRotation;
 import net.minecraft.util.math.BlockPos;
@@ -25,18 +26,19 @@ public class InvestmentCenterGenerator extends Structure {
 
     @Override
     public Optional<StructurePosition> getStructurePosition(Context context) {
-        return getStructurePosition(context, Heightmap.Type.WORLD_SURFACE_WG, collector -> {
-            int x = context.chunkPos().getCenterX();
-            int z = context.chunkPos().getCenterZ();
-            int y = context.chunkGenerator().getHeightOnGround(
-                    x, z, Heightmap.Type.WORLD_SURFACE_WG,
-                    context.world(), context.noiseConfig());
+        int x = context.chunkPos().getCenterX();
+        int z = context.chunkPos().getCenterZ();
+        int y = context.chunkGenerator().getHeightOnGround(
+                x, z, Heightmap.Type.WORLD_SURFACE_WG,
+                context.world(), context.noiseConfig()) - 1;
 
-            BlockRotation rotation = BlockRotation.random(context.random());
-            StructureTemplateManager manager = context.structureTemplateManager();
+        BlockRotation rotation = BlockRotation.random(context.random());
+        StructureTemplateManager manager = context.structureTemplateManager();
+        BlockPos pos = new BlockPos(x, y, z);
 
-            collector.addPiece(new InvestmentCenterPiece(manager, new BlockPos(x, y, z), rotation));
-        });
+        return Optional.of(new StructurePosition(pos, collector -> {
+            collector.addPiece(new InvestmentCenterPiece(manager, pos, rotation));
+        }));
     }
 
     @Override

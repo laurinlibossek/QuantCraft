@@ -14,16 +14,19 @@ import java.util.*;
 
 public class ModPackets {
     // S2C
-    public static final Identifier S2C_MARKET_UPDATE  = id("market_update");
-    public static final Identifier S2C_OPEN_QUOTRON   = id("open_quotron");
-    public static final Identifier S2C_OPEN_NEWSPAPER = id("open_newspaper");
-    public static final Identifier S2C_OTC_OFFER      = id("otc_offer");
-    public static final Identifier S2C_PORTFOLIO_DATA = id("portfolio_data");
+    public static final Identifier S2C_MARKET_UPDATE     = id("market_update");
+    public static final Identifier S2C_OPEN_QUOTRON      = id("open_quotron");
+    public static final Identifier S2C_OPEN_NEWSPAPER    = id("open_newspaper");
+    public static final Identifier S2C_OTC_OFFER         = id("otc_offer");
+    public static final Identifier S2C_PORTFOLIO_DATA    = id("portfolio_data");
+    public static final Identifier S2C_PAYMENT_REQUEST   = id("payment_request");
     // C2S
-    public static final Identifier C2S_UPDATE_QUOTRON = id("update_quotron");
-    public static final Identifier C2S_NEWSPAPER_READ = id("newspaper_read");
-    public static final Identifier C2S_BUTTON_CLICK   = id("button_click");
-    public static final Identifier C2S_OTC_RESPONSE   = id("otc_response");
+    public static final Identifier C2S_UPDATE_QUOTRON    = id("update_quotron");
+    public static final Identifier C2S_NEWSPAPER_READ    = id("newspaper_read");
+    public static final Identifier C2S_BUTTON_CLICK      = id("button_click");
+    public static final Identifier C2S_OTC_RESPONSE      = id("otc_response");
+    public static final Identifier C2S_PAYMENT_RESPONSE  = id("payment_response");
+    public static final Identifier C2S_WITHDRAW          = id("withdraw");
 
     private static Identifier id(String p) { return new Identifier(QuantCraftMod.MOD_ID, p); }
 
@@ -62,6 +65,68 @@ public class ModPackets {
             server.execute(() -> {
                 if (accepted) OtcTradeManager.getInstance().accept(player, offerId, server);
                 else          OtcTradeManager.getInstance().reject(player, offerId);
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(C2S_PAYMENT_RESPONSE, (server, player, handler, buf, resp) -> {
+            String requestId = buf.readString(64);
+            boolean accepted = buf.readBoolean();
+            server.execute(() -> {
+                if (accepted) {
+                    String err = PaymentRequestManager.getInstance().accept(requestId, player, server);
+                    if (err != null) player.sendMessage(net.minecraft.text.Text.literal(err), false);
+                } else {
+                    PaymentRequestManager.getInstance().reject(requestId, player, server);
+                }
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(C2S_WITHDRAW, (server, player, handler, buf, resp) -> {
+            int requestedAmount = buf.readInt();
+            server.execute(() -> {
+                if (!(player.currentScreenHandler instanceof com.quantcraft.screen.StockExchangeScreenHandler)) return;
+                var ps = com.quantcraft.persistence.MarketPersistentState.getOrCreate(player.getServer().getOverworld());
+                PlayerPortfolio port = ps.getPortfolio(player.getUuid());
+                int balance = (int) Math.floor(port.getBalance());
+                int amount = Math.max(0, Math.min(requestedAmount, balance));
+                if (amount <= 0) {
+                    player.sendMessage(net.minecraft.text.Text.literal("§cNo funds to withdraw."), false);
+                    return;
+                }
+                // Check capacity
+                int capacity = 0;
+                for (int s = 0; s < 36; s++) {
+                    net.minecraft.item.ItemStack slot = player.getInventory().main.get(s);
+                    if (slot.isEmpty()) {
+                        capacity += 64;
+                    } else if (slot.getItem() == com.quantcraft.registry.ModItems.DOLLAR_BILL && slot.getCount() < 64) {
+                        capacity += 64 - slot.getCount();
+                    }
+                }
+                if (amount > capacity) {
+                    player.sendMessage(net.minecraft.text.Text.literal(
+                            String.format("§cCan only fit %d¢. Free up inventory space.", capacity)), false);
+                    return;
+                }
+                // Insert
+                int given = 0;
+                while (given < amount) {
+                    int stackSize = Math.min(64, amount - given);
+                    net.minecraft.item.ItemStack dollarStack = new net.minecraft.item.ItemStack(
+                            com.quantcraft.registry.ModItems.DOLLAR_BILL, stackSize);
+                    player.getInventory().insertStack(dollarStack);
+                    given += stackSize - dollarStack.getCount();
+                    if (dollarStack.getCount() > 0) break;
+                }
+                port.deductBalance(given);
+                ps.markDirty();
+                for (int s = 0; s < player.getInventory().size(); s++) {
+                    player.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.ScreenHandlerSlotUpdateS2CPacket(
+                            -2, 0, s, player.getInventory().getStack(s)));
+                }
+                sendPortfolioToClient(player);
+                player.sendMessage(net.minecraft.text.Text.literal(String.format(
+                        "§aWithdrew §e%d¢ §7(%.1f¢ remaining in account).", given, port.getBalance())), false);
             });
         });
     }
@@ -129,5 +194,13 @@ public class ModPackets {
             buf.writeDouble(avgCosts.getOrDefault(e.getKey(), 0.0));
         }
         ServerPlayNetworking.send(player, S2C_PORTFOLIO_DATA, buf);
+    }
+
+    public static void sendPaymentRequestToClient(ServerPlayerEntity target, PaymentRequest request, String requesterName) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeString(request.requestId());
+        buf.writeString(requesterName);
+        buf.writeDouble(request.amount());
+        ServerPlayNetworking.send(target, S2C_PAYMENT_REQUEST, buf);
     }
 }

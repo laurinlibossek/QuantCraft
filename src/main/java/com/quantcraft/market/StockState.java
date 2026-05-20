@@ -37,8 +37,8 @@ public class StockState {
 
     public void applySupplyPressure(double delta)  { supplyPressure += delta; }
     public double tickSupplyPressure() {
-        double effect = supplyPressure * 0.05;
-        supplyPressure *= 0.97;
+        double effect = supplyPressure * 0.06;
+        supplyPressure *= 0.98;
         if (Math.abs(supplyPressure) < 0.01) supplyPressure = 0;
         return effect;
     }

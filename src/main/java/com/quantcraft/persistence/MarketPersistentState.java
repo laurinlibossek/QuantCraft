@@ -2,6 +2,7 @@ package com.quantcraft.persistence;
 
 import com.quantcraft.config.QuantCraftConfig;
 import com.quantcraft.market.*;
+import com.quantcraft.screen.TradeMessage;
 import net.minecraft.nbt.*;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.world.PersistentState;
@@ -20,8 +21,12 @@ public class MarketPersistentState extends PersistentState {
     private long                                   lastResetDayEpoch    = -1;
     private final Map<String,Double>               closingPrices        = new LinkedHashMap<>();
     private long                                   lastDividendPayoutMillis = 0L;
+    private long                                   lastDividendPayoutTick  = 0L;
     private long                                   marketTickCount      = 0L;
     private final Map<UUID,List<ShortPosition>>    shortPositions       = new HashMap<>();
+    private final Map<UUID,List<TradeMessage>>     playerMessages       = new HashMap<>();
+    private int                                    cyclePhaseIndex      = 0;
+    private long                                   cyclePhaseStartTick  = -1L;
 
     public static MarketPersistentState getOrCreate(ServerWorld world) {
         return world.getPersistentStateManager().getOrCreate(
@@ -119,7 +124,10 @@ public class MarketPersistentState extends PersistentState {
         state.lastDividendPayoutMillis = nbt.contains("lastDividendMillis")
                 ? nbt.getLong("lastDividendMillis")
                 : (nbt.contains("lastDividendTick") ? System.currentTimeMillis() : 0L);
+        state.lastDividendPayoutTick = nbt.getLong("lastDividendPayoutTick");
         state.marketTickCount = nbt.getLong("marketTickCount");
+        state.cyclePhaseIndex     = nbt.contains("cyclePhaseIndex")    ? nbt.getInt("cyclePhaseIndex")   : 0;
+        state.cyclePhaseStartTick = nbt.contains("cyclePhaseStartTick") ? nbt.getLong("cyclePhaseStartTick") : -1L;
 
         if (nbt.contains("shortPositions")) {
             NbtCompound spMap = nbt.getCompound("shortPositions");
@@ -157,6 +165,24 @@ public class MarketPersistentState extends PersistentState {
                             on.getInt("qty"), on.getDouble("price"), on.getLong("tick"));
                     ss.getOrderBook().addOrder(o);
                 }
+            }
+        }
+
+        if (nbt.contains("playerMessages")) {
+            NbtCompound messagesNbt = nbt.getCompound("playerMessages");
+            for (String key : messagesNbt.getKeys()) {
+                UUID playerId = UUID.fromString(key);
+                NbtList msgList = messagesNbt.getList(key, NbtElement.COMPOUND_TYPE);
+                List<TradeMessage> msgs = new ArrayList<>();
+                for (int i = 0; i < msgList.size(); i++) {
+                    NbtCompound msgNbt = msgList.getCompound(i);
+                    msgs.add(new TradeMessage(
+                        msgNbt.getLong("time"),
+                        msgNbt.getString("text"),
+                        TradeMessage.MessageType.valueOf(msgNbt.getString("type"))
+                    ));
+                }
+                state.playerMessages.put(playerId, msgs);
             }
         }
 
@@ -256,7 +282,10 @@ public class MarketPersistentState extends PersistentState {
         nbt.put("closingPrices", cpNbt);
 
         nbt.putLong("lastDividendMillis", lastDividendPayoutMillis);
+        nbt.putLong("lastDividendPayoutTick", lastDividendPayoutTick);
         nbt.putLong("marketTickCount", MarketEngine.getInstance().getMarketTickCount());
+        nbt.putInt("cyclePhaseIndex",      cyclePhaseIndex);
+        nbt.putLong("cyclePhaseStartTick", cyclePhaseStartTick);
 
         NbtCompound spMap = new NbtCompound();
         shortPositions.forEach((uuid, list) -> {
@@ -274,6 +303,20 @@ public class MarketPersistentState extends PersistentState {
             if (!spList.isEmpty()) spMap.put(uuid.toString(), spList);
         });
         nbt.put("shortPositions", spMap);
+
+        NbtCompound messagesNbt = new NbtCompound();
+        for (var entry : playerMessages.entrySet()) {
+            NbtList msgList = new NbtList();
+            for (TradeMessage msg : entry.getValue()) {
+                NbtCompound msgNbt = new NbtCompound();
+                msgNbt.putLong("time", msg.timestamp());
+                msgNbt.putString("text", msg.text());
+                msgNbt.putString("type", msg.type().name());
+                msgList.add(msgNbt);
+            }
+            messagesNbt.put(entry.getKey().toString(), msgList);
+        }
+        nbt.put("playerMessages", messagesNbt);
 
         return nbt;
     }
@@ -323,10 +366,34 @@ public class MarketPersistentState extends PersistentState {
     // ── Dividend payout timing ───────────────────────────────────────────────
     public long getLastDividendPayoutMillis()            { return lastDividendPayoutMillis; }
     public void setLastDividendPayoutMillis(long millis) { lastDividendPayoutMillis = millis; markDirty(); }
+    public long getLastDividendPayoutTick()             { return lastDividendPayoutTick; }
+    public void setLastDividendPayoutTick(long tick)    { lastDividendPayoutTick = tick; markDirty(); }
 
     // ── Market tick count (for holding period tracking) ──────────────────────
     public long getMarketTickCount()          { return marketTickCount; }
     public void setMarketTickCount(long v)    { marketTickCount = v; markDirty(); }
+
+    // ── Player Messages ───────────────────────────────────────────────────────
+    public void addPlayerMessage(UUID playerId, String text, TradeMessage.MessageType type) {
+        List<TradeMessage> msgs = playerMessages.computeIfAbsent(playerId, k -> new ArrayList<>());
+        msgs.add(0, new TradeMessage(System.currentTimeMillis(), text, type));
+
+        // Keep only last 50 messages
+        if (msgs.size() > 50) {
+            msgs.subList(50, msgs.size()).clear();
+        }
+        markDirty();
+    }
+
+    public List<TradeMessage> getPlayerMessages(UUID playerId) {
+        return playerMessages.getOrDefault(playerId, Collections.emptyList());
+    }
+
+    // ── Market cycle ─────────────────────────────────────────────────────────
+    public int  getCyclePhaseIndex()              { return cyclePhaseIndex; }
+    public void setCyclePhaseIndex(int v)         { cyclePhaseIndex = v; markDirty(); }
+    public long getCyclePhaseStartTick()          { return cyclePhaseStartTick; }
+    public void setCyclePhaseStartTick(long v)    { cyclePhaseStartTick = v; markDirty(); }
 
     // ── Short positions ───────────────────────────────────────────────────────
     public Map<UUID,List<ShortPosition>> getAllShortPositions() {

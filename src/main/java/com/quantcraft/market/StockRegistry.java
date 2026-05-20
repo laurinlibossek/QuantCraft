@@ -45,19 +45,19 @@ public class StockRegistry {
         // Blaze Rod: Nether fortress required, blaze farms exist
         // Glowstone: Nether, breaks into dust, witches also drop
         // Ghast Tear: difficult to farm at scale, dangerous mob
-        // Bone: skeleton farms trivial, should be cheap
         add("EPRL", "Ender Pearl",  "minecraft:ender_pearl",   ARCANE,    28,0.55,0.25,  5000, 10.0, 0.93);
         add("BLAZ", "Blaze Rod",    "minecraft:blaze_rod",     ARCANE,    45,0.60,0.22,  4000, 16.0, 0.93);
         add("GLOW", "Glowstone",    "minecraft:glowstone_dust",ARCANE,    18,0.50,0.25,  5000,  6.0, 0.92);
         add("GHST", "Ghast Tear",   "minecraft:ghast_tear",    ARCANE,    65,0.60,0.22,  4000, 25.0, 0.94);
-        add("SKEL", "Bone",         "minecraft:bone",          ARCANE,     5,0.35,0.30,  10000, 1.5, 0.91);
         // ── LIVESTOCK ───────────────────────────────────────────────────────
         // Leather: cow farms trivially automated
         // Wool: trivial with shears on sheep
         // Feather: chicken farms trivial
+        // Bone: skeleton farms trivial, lumped with other mob drops
         add("LEAT", "Leather",      "minecraft:leather",       LIVESTOCK,  8,0.22,0.32, 40000,  2.5, 0.91);
         add("WOOL", "Wool",         "minecraft:white_wool",    LIVESTOCK,  7,0.20,0.34, 45000,  2.0, 0.91);
         add("FTHR", "Feather",      "minecraft:feather",       LIVESTOCK,  4,0.25,0.30, 55000,  1.2, 0.90);
+        add("SKEL", "Bone",         "minecraft:bone",          LIVESTOCK,  5,0.28,0.35, 50000,  1.5, 0.90);
         // ── MANUFACTURED ────────────────────────────────────────────────────
         // Glass: sand + fuel, easy but requires smelting
         // Brick: clay is limited, smelting required — actually somewhat scarce
@@ -72,8 +72,8 @@ public class StockRegistry {
         for (String tk : new String[]{"WHEAT","CRRT","POTAT","APPLE","MELON"}) DIVIDEND_RATES.put(tk, 0.002);
         // LUMBER — trivial farms
         for (String tk : new String[]{"OAKW","BIRC","SPRCE"})                   DIVIDEND_RATES.put(tk, 0.0022);
-        // LIVESTOCK — moderate farms
-        for (String tk : new String[]{"LEAT","WOOL","FTHR"})                    DIVIDEND_RATES.put(tk, 0.0018);
+        // LIVESTOCK — moderate farms (includes SKEL, trivially farmable)
+        for (String tk : new String[]{"LEAT","WOOL","FTHR","SKEL"})             DIVIDEND_RATES.put(tk, 0.0018);
         // MANUFACTURED — mixed effort
         for (String tk : new String[]{"GLASS","BRICK","PAPER"})                 DIVIDEND_RATES.put(tk, 0.0016);
         // MINING — common ores + emerald (villager-farmable)
@@ -81,7 +81,7 @@ public class StockRegistry {
         // MINING — diamond (genuinely rare, growth stock)
         DIVIDEND_RATES.put("DIAM", 0.0005);
         // ARCANE — dangerous to obtain, low dividend (growth stocks)
-        for (String tk : new String[]{"EPRL","BLAZ","GLOW","GHST","SKEL"})      DIVIDEND_RATES.put(tk, 0.0004);
+        for (String tk : new String[]{"EPRL","BLAZ","GLOW","GHST"})             DIVIDEND_RATES.put(tk, 0.0004);
     }
 
     private static final MarketSector AGRARIAN     = MarketSector.AGRARIAN;
