@@ -11,7 +11,46 @@
       ],
       "conditions": [
         {
-          "condition": "minecraft:survives_explosion"
+          "condition": "minecraft:match_tool",
+          "predicate": {
+            "enchantments": [
+              {
+                "enchantment": "minecraft:silk_touch",
+                "levels": { "min": 1 }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "minecraft:gold_ingot",
+          "functions": [
+            {
+              "function": "minecraft:set_count",
+              "count": 2
+            }
+          ]
+        }
+      ],
+      "conditions": [
+        {
+          "condition": "minecraft:inverted",
+          "term": {
+            "condition": "minecraft:match_tool",
+            "predicate": {
+              "enchantments": [
+                {
+                  "enchantment": "minecraft:silk_touch",
+                  "levels": { "min": 1 }
+                }
+              ]
+            }
+          }
         }
       ]
     }
