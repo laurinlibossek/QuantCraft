@@ -30,7 +30,7 @@ public class InvestmentCenterGenerator extends Structure {
         int z = context.chunkPos().getCenterZ();
         int y = context.chunkGenerator().getHeightOnGround(
                 x, z, Heightmap.Type.WORLD_SURFACE_WG,
-                context.world(), context.noiseConfig()) - 1;
+                context.world(), context.noiseConfig());
 
         BlockRotation rotation = BlockRotation.random(context.random());
         StructureTemplateManager manager = context.structureTemplateManager();
