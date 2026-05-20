@@ -85,6 +85,15 @@ public class ModPacketsClient {
                 }
             });
         });
+
+        ClientPlayNetworking.registerGlobalReceiver(ModPackets.S2C_PAYMENT_REQUEST, (client, handler, buf, resp) -> {
+            String requestId     = buf.readString();
+            String requesterName = buf.readString();
+            double amount        = buf.readDouble();
+            client.execute(() -> {
+                client.setScreen(new PaymentRequestScreen(requestId, requesterName, amount));
+            });
+        });
     }
 
     public static void sendUpdateQuotron(List<String> tickers, BlockPos pos) {
@@ -107,5 +116,18 @@ public class ModPacketsClient {
         buf.writeString(offerId, 64);
         buf.writeBoolean(accepted);
         ClientPlayNetworking.send(ModPackets.C2S_OTC_RESPONSE, buf);
+    }
+
+    public static void sendPaymentResponse(String requestId, boolean accepted) {
+        PacketByteBuf buf = net.fabricmc.fabric.api.networking.v1.PacketByteBufs.create();
+        buf.writeString(requestId, 64);
+        buf.writeBoolean(accepted);
+        ClientPlayNetworking.send(ModPackets.C2S_PAYMENT_RESPONSE, buf);
+    }
+
+    public static void sendWithdraw(int amount) {
+        PacketByteBuf buf = net.fabricmc.fabric.api.networking.v1.PacketByteBufs.create();
+        buf.writeInt(amount);
+        ClientPlayNetworking.send(ModPackets.C2S_WITHDRAW, buf);
     }
 }

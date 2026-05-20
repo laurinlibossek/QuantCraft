@@ -36,14 +36,14 @@ public class CocaineItem extends Item {
     public ItemStack finishUsing(ItemStack stack, World world, LivingEntity user) {
         if (!world.isClient) {
             // FEATURE: Cocaine can be consumed repeatedly to extend effect duration - this is intentional
-            // Each consumption adds another 60 seconds (1200 ticks) to all effects
             user.addStatusEffect(new StatusEffectInstance(ModEffects.COCAINE_HIGH,    1200, 0, false, true, true));
             user.addStatusEffect(new StatusEffectInstance(StatusEffects.SPEED,        1200, 1, false, true, true));
             user.addStatusEffect(new StatusEffectInstance(StatusEffects.STRENGTH,     1200, 0, false, true, true));
             user.addStatusEffect(new StatusEffectInstance(StatusEffects.HASTE,        1200, 1, false, true, true));
             user.addStatusEffect(new StatusEffectInstance(StatusEffects.JUMP_BOOST,   1200, 1, false, true, true));
             user.addStatusEffect(new StatusEffectInstance(StatusEffects.NIGHT_VISION, 1200, 0, false, true, true));
-            user.addStatusEffect(new StatusEffectInstance(StatusEffects.POISON,       300,  0, false, true, true)); // 15 seconds weak poison
+            user.addStatusEffect(new StatusEffectInstance(StatusEffects.POISON,       300,  0, false, true, true));
+            CocaineCrashTracker.HIGH.add(user.getUuid());
         }
         return super.finishUsing(stack, world, user);
     }

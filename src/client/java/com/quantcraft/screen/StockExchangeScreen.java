@@ -6,6 +6,7 @@ import com.quantcraft.screen.StockExchangeScreenHandler.StockDisplayData;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.text.Text;
 import java.util.*;
@@ -20,29 +21,47 @@ public class StockExchangeScreen extends HandledScreen<StockExchangeScreenHandle
     private static final int SEL   = 0xFF0f3460;
     private static final int ROWS  = 10;
     private static final int ROW_H = 14;
+    private static final int MESSAGE_PANEL_H = 60;
+    private static final int MESSAGE_ROW_H = 11;
 
     private int scroll = 0, activeTab = 0;
+    private int messageScrollOffset = 0;
+    private TextFieldWidget withdrawField;
 
     public StockExchangeScreen(StockExchangeScreenHandler h, PlayerInventory inv, Text title) {
         super(h, inv, title);
         backgroundWidth  = 330;
-        backgroundHeight = 230;
+        backgroundHeight = 230 + MESSAGE_PANEL_H;
     }
 
     @Override protected void init() {
         super.init();
         int x = (width - backgroundWidth) / 2, y = (height - backgroundHeight) / 2;
-        // Trade buttons
-        addDrawableChild(ButtonWidget.builder(Text.literal("Buy 1"),   btn -> click(100)).dimensions(x + 5,   y + backgroundHeight - 48, 52, 18).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Sell 1"),  btn -> click(101)).dimensions(x + 60,  y + backgroundHeight - 48, 55, 18).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Buy 64"),  btn -> click(102)).dimensions(x + 120, y + backgroundHeight - 48, 55, 18).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Sell 64"), btn -> click(103)).dimensions(x + 180, y + backgroundHeight - 48, 60, 18).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Withdraw $"), btn -> { click(200); this.close(); }).dimensions(x + backgroundWidth - 82, y + backgroundHeight - 48, 76, 18).build());
+        // Trade buttons — placed in the empty space between stock rows (end ~y+173) and message panel (y+230)
+        addDrawableChild(ButtonWidget.builder(Text.literal("Buy 1"),   btn -> click(100)).dimensions(x + 5,   y + 177, 52, 18).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Sell 1"),  btn -> click(101)).dimensions(x + 60,  y + 177, 55, 18).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Buy 64"),  btn -> click(102)).dimensions(x + 120, y + 177, 55, 18).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Sell 64"), btn -> click(103)).dimensions(x + 180, y + 177, 60, 18).build());
+        withdrawField = new TextFieldWidget(textRenderer, x + backgroundWidth - 118, y + 177, 60, 18, Text.literal(""));
+        withdrawField.setMaxLength(7);
+        withdrawField.setText("");
+        withdrawField.setPlaceholder(Text.literal("Amount"));
+        addDrawableChild(withdrawField);
+        addDrawableChild(ButtonWidget.builder(Text.literal("W$"), btn -> {
+            String text = withdrawField.getText().trim();
+            if (text.isEmpty()) return;
+            try {
+                int amt = Integer.parseInt(text);
+                if (amt > 0) ModPacketsClient.sendWithdraw(amt);
+            } catch (NumberFormatException ignored) {
+                ModPacketsClient.sendWithdraw(1);
+            }
+        }).dimensions(x + backgroundWidth - 54, y + 177, 48, 18).build());
         // Tabs
-        addDrawableChild(ButtonWidget.builder(Text.literal("Market"),    btn -> activeTab = 0).dimensions(x + 5,   y + backgroundHeight - 25, 60, 18).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Portfolio"), btn -> activeTab = 1).dimensions(x + 70,  y + backgroundHeight - 25, 65, 18).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("News"),      btn -> activeTab = 2).dimensions(x + 140, y + backgroundHeight - 25, 50, 18).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Orders"),    btn -> activeTab = 3).dimensions(x + 195, y + backgroundHeight - 25, 55, 18).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Market"),    btn -> activeTab = 0).dimensions(x + 5,   y + 200, 60, 18).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Portfolio"), btn -> activeTab = 1).dimensions(x + 70,  y + 200, 65, 18).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("News"),      btn -> activeTab = 2).dimensions(x + 140, y + 200, 50, 18).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Orders"),    btn -> activeTab = 3).dimensions(x + 195, y + 200, 55, 18).build());
     }
 
     private void click(int id) { ModPacketsClient.sendButtonClick(handler.syncId, id); }
@@ -52,8 +71,8 @@ public class StockExchangeScreen extends HandledScreen<StockExchangeScreenHandle
         ctx.fill(x, y, x + backgroundWidth, y + backgroundHeight, BG);
         ctx.fill(x, y, x + backgroundWidth, y + 18, PANEL);
         ctx.fill(x, y + 18, x + backgroundWidth, y + 19, 0xFF334455);
-        ctx.fill(x, y + backgroundHeight - 56, x + backgroundWidth, y + backgroundHeight - 55, 0xFF334455);
-        ctx.fill(x, y + backgroundHeight - 30, x + backgroundWidth, y + backgroundHeight - 29, 0xFF334455);
+        ctx.fill(x, y + 174, x + backgroundWidth, y + 175, 0xFF334455);
+        ctx.fill(x, y + 197, x + backgroundWidth, y + 198, 0xFF334455);
     }
 
     @Override protected void drawForeground(DrawContext ctx, int mx, int my) {
@@ -169,7 +188,16 @@ public class StockExchangeScreen extends HandledScreen<StockExchangeScreenHandle
         int ry = 25;
         ctx.drawText(textRenderer, "MARKET NEWS", 6, ry, GOLD, false); ry += 14;
         if (handler.recentNews.isEmpty()) { ctx.drawText(textRenderer, "No news yet.", 6, ry, GRAY, false); return; }
-        for (String n : handler.recentNews) { ctx.drawText(textRenderer, "• " + n, 6, ry, 0xFFccccdd, false); ry += 12; }
+        int maxW = backgroundWidth - 14;
+        for (String n : handler.recentNews) {
+            String display = "• " + n;
+            if (textRenderer.getWidth(display) > maxW) {
+                while (textRenderer.getWidth(display + "...") > maxW && display.length() > 3)
+                    display = display.substring(0, display.length() - 1);
+                display += "...";
+            }
+            ctx.drawText(textRenderer, display, 6, ry, 0xFFccccdd, false); ry += 12;
+        }
     }
 
     private void drawOrders(DrawContext ctx) {
@@ -210,6 +238,21 @@ public class StockExchangeScreen extends HandledScreen<StockExchangeScreenHandle
     }
 
     @Override public boolean mouseScrolled(double mx, double my, double h, double v) {
+        int panelY = (height - backgroundHeight) / 2 + 222;
+        int panelX = (width - backgroundWidth) / 2;
+
+        // Check if mouse is over message panel
+        if (my >= panelY && my < panelY + MESSAGE_PANEL_H &&
+            mx >= panelX && mx < panelX + backgroundWidth) {
+
+            int visibleRows = (MESSAGE_PANEL_H - 18) / MESSAGE_ROW_H;
+            int maxScroll = Math.max(0, handler.messageHistory.size() - visibleRows);
+
+            messageScrollOffset -= (int) Math.signum(v);
+            messageScrollOffset = Math.max(0, Math.min(maxScroll, messageScrollOffset));
+            return true;
+        }
+
         int max = Math.max(0, handler.stocks.size() - ROWS);
         scroll = (int)Math.max(0, Math.min(max, scroll - v));
         return true;
@@ -231,8 +274,59 @@ public class StockExchangeScreen extends HandledScreen<StockExchangeScreenHandle
         }
     }
 
+    private void drawMessages(DrawContext ctx) {
+        int panelY = (height - backgroundHeight) / 2 + 222;
+        int panelX = (width - backgroundWidth) / 2;
+
+        // Panel background
+        ctx.fill(panelX, panelY, panelX + backgroundWidth, panelY + MESSAGE_PANEL_H, 0xFF0d1117);
+
+        // Header
+        ctx.drawText(textRenderer, "Trade History", panelX + 4, panelY + 4, GOLD, false);
+
+        // Scrollable message area
+        int msgY = panelY + 16;
+        int visibleRows = (MESSAGE_PANEL_H - 18) / MESSAGE_ROW_H;
+        List<TradeMessage> messages = handler.messageHistory;
+
+        int startIdx = Math.min(messageScrollOffset, Math.max(0, messages.size() - visibleRows));
+        int endIdx = Math.min(startIdx + visibleRows, messages.size());
+
+        if (messages.isEmpty()) {
+            ctx.drawText(textRenderer, "No messages yet.", panelX + 4, msgY, 0xFF666677, false);
+        } else {
+            for (int i = startIdx; i < endIdx; i++) {
+                TradeMessage msg = messages.get(i);
+                int color = switch (msg.type()) {
+                    case TRADE -> GREEN;      // Green
+                    case ERROR -> RED;        // Red
+                    case SUCCESS -> GOLD;     // Gold
+                    case INFO -> GRAY;        // Gray
+                };
+
+                // Truncate long messages
+                String displayText = msg.text();
+                if (textRenderer.getWidth(displayText) > backgroundWidth - 12) {
+                    while (textRenderer.getWidth(displayText + "...") > backgroundWidth - 12 && displayText.length() > 0) {
+                        displayText = displayText.substring(0, displayText.length() - 1);
+                    }
+                    displayText += "...";
+                }
+
+                ctx.drawText(textRenderer, displayText, panelX + 4, msgY, color, false);
+                msgY += MESSAGE_ROW_H;
+            }
+        }
+
+        // Scroll indicator
+        if (messages.size() > visibleRows) {
+            ctx.drawText(textRenderer, "↕", panelX + backgroundWidth - 12, panelY + 4, 0xFF666677, false);
+        }
+    }
+
     @Override public void render(DrawContext ctx, int mx, int my, float d) {
         renderBackground(ctx, mx, my, d);
         super.render(ctx, mx, my, d);
+        drawMessages(ctx);
     }
 }

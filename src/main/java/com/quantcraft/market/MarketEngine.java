@@ -23,9 +23,15 @@ public class MarketEngine {
     private final List<String>             recentNews    = new ArrayList<>();
     private final Map<String,Double>       closingPrices = new LinkedHashMap<>();
     private static final int MAX_NEWS = 5;
-    private boolean frozen     = false;
-    private boolean marketOpen = true;
-    private long    marketTickCount = 0;
+    private boolean      frozen         = false;
+    private boolean      marketOpen     = true;
+    private long         marketTickCount = 0;
+    private MarketSeason currentSeason  = MarketSeason.RECOVERY;
+    private long         seasonStartTick = -1L;
+
+    // Each phase lasts 3 Minecraft days = 72 000 game ticks. Blend starts 12 000 ticks before end.
+    public  static final long PHASE_LENGTH_TICKS = 72_000L;
+    private static final long BLEND_TICKS        = 12_000L;
 
     // ── Initialisation ───────────────────────────────────────────────────────
     public void loadState(MarketPersistentState ps) {
@@ -44,15 +50,23 @@ public class MarketEngine {
             }
             LiquidityBot bot = ps.getLiquidityBot(def.ticker());
             if (bot == null) {
-                int reserve = (int)(def.totalShares() * 0.20);
+                int reserve = (int)(def.totalShares() * 0.25);
+                // Larger order sizes for high-float (farmable) stocks so the bot provides real resistance
+                int orderSz = def.totalShares() >= 50_000 ? 64 : def.totalShares() >= 20_000 ? 32 : 16;
                 bot = new LiquidityBot(def.ticker(), def.basePrice(), reserve);
+                bot.setOrderSize(orderSz);
             }
             bots.put(def.ticker(), bot);
             StockState ss = states.get(def.ticker());
             if (ss != null) bot.tick(ss, def);
         }
         reconcileSharesHeld(ps);
-        QuantCraftMod.LOGGER.info("[QuantCraft] Loaded {} stocks.", states.size());
+        MarketSeason[] phases = MarketSeason.values();
+        currentSeason  = phases[Math.floorMod(ps.getCyclePhaseIndex(), phases.length)];
+        seasonStartTick = ps.getCyclePhaseStartTick();
+        recentNews.clear();
+        pushSeasonStatus();
+        QuantCraftMod.LOGGER.info("[QuantCraft] Loaded {} stocks. Season: {}", states.size(), currentSeason.displayName);
     }
 
     private void reconcileSharesHeld(MarketPersistentState ps) {
@@ -84,8 +98,11 @@ public class MarketEngine {
         tickSimulated(server);
         processShortPositions(server, ps);
         payDividendsIfDue(server, ps);
-        if (marketTickCount % 200 == 0)
+        if (marketTickCount % 200 == 0) {
             OtcTradeManager.getInstance().purgeExpired(server.getOverworld().getTime());
+            PaymentRequestManager.getInstance().purgeExpired(server.getOverworld().getTime());
+        }
+        tickSeason(server, ps);
         ps.saveStates(states);
         ModPackets.broadcastMarketUpdate(server, getSnapshot());
     }
@@ -100,6 +117,11 @@ public class MarketEngine {
 
     public Map<String,Double> getClosingPrices() { return Collections.unmodifiableMap(closingPrices); }
 
+    // Season blend values recomputed each tick, shared across per-stock loop
+    private double blendedSeasonPressure   = 0.0;
+    private double blendedSeasonVolatility = 1.0;
+    private double seasonBlendFactor       = 0.0; // 0 = fully current phase, 1 = fully next
+
     private synchronized void tickSimulated(MinecraftServer server) {
         long    wt        = server.getOverworld().getTimeOfDay();
         long    tod       = wt % 24000L;
@@ -111,6 +133,26 @@ public class MarketEngine {
         marketOpen = tod < 13000L;
         if (marketOpen && !wasOpen) {
             for (StockState ss : states.values()) ss.snapshotOpenPrice();
+        }
+
+        // Compute blended season values (lerp during last BLEND_TICKS of phase)
+        if (seasonStartTick >= 0) {
+            long elapsed = server.getOverworld().getTime() - seasonStartTick;
+            long blendStart = PHASE_LENGTH_TICKS - BLEND_TICKS;
+            if (elapsed >= blendStart) {
+                seasonBlendFactor = Math.min(1.0, (double)(elapsed - blendStart) / BLEND_TICKS);
+                MarketSeason next = currentSeason.next();
+                blendedSeasonPressure   = lerp(currentSeason.pressureCoeff,  next.pressureCoeff,  seasonBlendFactor);
+                blendedSeasonVolatility = lerp(currentSeason.volatilityMult, next.volatilityMult, seasonBlendFactor);
+            } else {
+                seasonBlendFactor       = 0.0;
+                blendedSeasonPressure   = currentSeason.pressureCoeff;
+                blendedSeasonVolatility = currentSeason.volatilityMult;
+            }
+        } else {
+            seasonBlendFactor       = 0.0;
+            blendedSeasonPressure   = currentSeason.pressureCoeff;
+            blendedSeasonVolatility = currentSeason.volatilityMult;
         }
 
         // Apply active newspaper events only during market hours; pause countdown at night
@@ -140,8 +182,9 @@ public class MarketEngine {
             double supplyEffect = state.tickSupplyPressure();
             double sectorMod = computeSectorModifier(def.sector(), isNight, isFullMoon, isThunder, def.basePrice());
 
-            float mult = QuantCraftConfig.getGlobalVolatilityMultiplier();
-            double priceChange = (eventPressure * 0.1 + supplyEffect + sectorMod) * mult;
+            float mult = QuantCraftConfig.getGlobalVolatilityMultiplier() * (float) blendedSeasonVolatility;
+            double seasonNudge = blendedSeasonPressure * def.basePrice();
+            double priceChange = (eventPressure * 0.1 + supplyEffect + sectorMod) * mult + seasonNudge;
             state.updatePrice(state.getCurrentPrice() + priceChange);
 
             double pct = state.getDailyChangePercent();
@@ -280,14 +323,14 @@ public class MarketEngine {
     }
 
     // ── Dividend payouts ──────────────────────────────────────────────────────
-    // 3 real days in milliseconds
-    private static final long DIVIDEND_INTERVAL_MS    = 259_200_000L;
+    // 3 in-game days = 3 × 24000 = 72000 game ticks
+    private static final long DIVIDEND_INTERVAL_TICKS = 72_000L;
     // Minimum holding period in market ticks before dividends are paid
     private static final long DIVIDEND_HOLDING_PERIOD = 60L;
 
     private void payDividendsIfDue(MinecraftServer server, MarketPersistentState ps) {
-        long now = System.currentTimeMillis();
-        if (now - ps.getLastDividendPayoutMillis() < DIVIDEND_INTERVAL_MS) return;
+        long now = server.getOverworld().getTime();
+        if (now - ps.getLastDividendPayoutTick() < DIVIDEND_INTERVAL_TICKS) return;
 
         boolean anyPaid = false;
         for (var entry : ps.getAllPortfolios().entrySet()) {
@@ -307,7 +350,7 @@ public class MarketEngine {
                     if (rate == 0) continue;
                     StockState ss = states.get(tk);
                     if (ss == null) continue;
-                    double gross  = qty * ss.getCurrentPrice() * rate;
+                    double gross  = qty * ss.getCurrentPrice() * rate * getBlendedDividendMult();
                     if (gross < 0.01) continue;
                     double tax    = gross * taxRate;
                     double payout = gross - tax;
@@ -327,12 +370,57 @@ public class MarketEngine {
             }
         }
 
-        ps.setLastDividendPayoutMillis(now);
+        ps.setLastDividendPayoutTick(now);
         ps.markDirty();
         if (anyPaid) {
             server.getPlayerManager().broadcast(
                     net.minecraft.text.Text.literal("§6§lDividend payout complete. Check your balance."), false);
         }
+    }
+
+    // ── Market cycle (season) ─────────────────────────────────────────────────
+    private void tickSeason(MinecraftServer server, MarketPersistentState ps) {
+        long now = server.getOverworld().getTime();
+        if (seasonStartTick < 0) {
+            // First-run initialisation
+            seasonStartTick = now;
+            ps.setCyclePhaseStartTick(now);
+            ps.setCyclePhaseIndex(currentSeason.ordinal());
+            return;
+        }
+        long elapsed = now - seasonStartTick;
+        if (elapsed >= PHASE_LENGTH_TICKS) {
+            MarketSeason next = currentSeason.next();
+            currentSeason   = next;
+            seasonStartTick = now;
+            ps.setCyclePhaseIndex(next.ordinal());
+            ps.setCyclePhaseStartTick(now);
+            server.getPlayerManager().broadcast(
+                    net.minecraft.text.Text.literal(next.transitionMessage), false);
+            pushSeasonStatus();
+        }
+    }
+
+    private static double lerp(double a, double b, double t) { return a + (b - a) * t; }
+
+    public MarketSeason getCurrentSeason()   { return currentSeason; }
+    public long         getSeasonStartTick() { return seasonStartTick; }
+
+    public void forceSetSeason(MarketSeason season, long nowTick, MarketPersistentState ps) {
+        currentSeason   = season;
+        seasonStartTick = nowTick;
+        ps.setCyclePhaseIndex(season.ordinal());
+        ps.setCyclePhaseStartTick(nowTick);
+    }
+
+    /** Returns ticks elapsed in the current phase (based on overworld time). */
+    public long getSeasonElapsedTicks(MinecraftServer server) {
+        return seasonStartTick < 0 ? 0 : server.getOverworld().getTime() - seasonStartTick;
+    }
+
+    public double getBlendedDividendMult() {
+        if (seasonBlendFactor == 0.0) return currentSeason.dividendMult;
+        return lerp(currentSeason.dividendMult, currentSeason.next().dividendMult, seasonBlendFactor);
     }
 
     // ── Event system ─────────────────────────────────────────────────────────
@@ -356,9 +444,9 @@ public class MarketEngine {
             case THUNDER_STORM         -> { pressureSector(MarketSector.MINING, +2.0); pressureSector(MarketSector.LUMBER, +1.5); pressureSector(MarketSector.ARCANE, +1.5); pressureSector(MarketSector.AGRARIAN, -1.0); }
             case CLEAR_WEATHER         -> { pressureSector(MarketSector.AGRARIAN, +2.0); pressureSector(MarketSector.LIVESTOCK, +1.5); pressureSector(MarketSector.LUMBER, +1.0); }
             case FULL_MOON             -> { pressureSector(MarketSector.ARCANE, +4.0); pressureSector(MarketSector.LIVESTOCK, -1.0); pushNews("Full moon rises — Arcane markets stir."); }
-            // Player trading signals demand
-            case PLAYER_BOUGHT_STOCK   -> { if (optTicker != null) pressureTicker(optTicker, +1.5); }
-            case PLAYER_SOLD_STOCK     -> { if (optTicker != null) pressureTicker(optTicker, -1.5); }
+            // Player trading signals demand — scaled by stock's base price so cheap stocks don't spike 5% per trade
+            case PLAYER_BOUGHT_STOCK   -> { if (optTicker != null) { StockDefinition d = StockRegistry.get(optTicker); pressureTicker(optTicker, d != null ? +0.3 * d.volatility() * (d.basePrice() / 10.0) : +0.5); } }
+            case PLAYER_SOLD_STOCK     -> { if (optTicker != null) { StockDefinition d = StockRegistry.get(optTicker); pressureTicker(optTicker, d != null ? -0.3 * d.volatility() * (d.basePrice() / 10.0) : -0.5); } }
             // Admin overrides
             case ADMIN_SECTOR_CRASH    -> { if (optTicker != null) try { pressureSector(MarketSector.valueOf(optTicker), -50.0); } catch (Exception ignored) {} }
             case ADMIN_SECTOR_BOOM     -> { if (optTicker != null) try { pressureSector(MarketSector.valueOf(optTicker), +50.0); } catch (Exception ignored) {} }
@@ -388,12 +476,15 @@ public class MarketEngine {
         // Ambient drift: every sector gets mild random momentum each tick
         double ambient = sectorRng.nextGaussian() * base * 0.003;
 
+        // Sector-specific modifiers only apply during market hours (daytime).
+        if (!marketOpen) return ambient;
+
         double specific = switch (sec) {
-            case ARCANE       -> (night ? base * 0.012 : -base * 0.003) + (full ? base * 0.01 : 0);
-            case MINING       -> thunder ? base * 0.008 : 0;
-            case AGRARIAN     -> night ? -base * 0.002 : base * 0.003;
-            case LUMBER       -> thunder ? -base * 0.003 : 0;
-            case LIVESTOCK    -> night ? -base * 0.002 : base * 0.001;
+            case ARCANE       -> (full ? base * 0.008 : 0);
+            case MINING       -> thunder ? base * 0.006 : 0;
+            case AGRARIAN     -> base * 0.002;
+            case LUMBER       -> thunder ? -base * 0.002 : 0;
+            case LIVESTOCK    -> base * 0.001;
             case MANUFACTURED -> 0;
         };
         return ambient + specific;
@@ -401,6 +492,12 @@ public class MarketEngine {
 
     private void pushNews(String headline) {
         recentNews.add(0, headline);
+        if (recentNews.size() > MAX_NEWS) recentNews.remove(recentNews.size() - 1);
+    }
+
+    private void pushSeasonStatus() {
+        recentNews.removeIf(s -> s.contains("Season:"));
+        recentNews.add(0, currentSeason.color + "Season: " + currentSeason.displayName);
         if (recentNews.size() > MAX_NEWS) recentNews.remove(recentNews.size() - 1);
     }
 

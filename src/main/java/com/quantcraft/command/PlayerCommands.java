@@ -9,7 +9,6 @@ import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.*;
-import net.minecraft.util.Formatting;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import java.util.*;
@@ -23,24 +22,29 @@ public class PlayerCommands {
                 .then(literal("balance")  .executes(ctx -> balance(ctx.getSource())))
                 .then(literal("portfolio").executes(ctx -> portfolio(ctx.getSource())))
                 .then(literal("price").then(argument("ticker", StringArgumentType.word())
+                    .suggests(CommandSuggestions.TICKER)
                     .executes(ctx -> price(ctx.getSource(), StringArgumentType.getString(ctx, "ticker")))))
                 .then(literal("prices")
                     .executes(ctx -> prices(ctx.getSource(), null))
                     .then(argument("sector", StringArgumentType.word())
+                        .suggests(CommandSuggestions.SECTOR)
                         .executes(ctx -> prices(ctx.getSource(), StringArgumentType.getString(ctx, "sector")))))
                 .then(literal("buy").then(argument("ticker", StringArgumentType.word())
+                    .suggests(CommandSuggestions.TICKER)
                     .then(argument("qty", IntegerArgumentType.integer(1))
                         .executes(ctx -> trade(ctx.getSource(),
                             StringArgumentType.getString(ctx, "ticker"),
                             IntegerArgumentType.getInteger(ctx, "qty"),
                             true)))))
                 .then(literal("sell").then(argument("ticker", StringArgumentType.word())
+                    .suggests(CommandSuggestions.TICKER)
                     .then(argument("qty", IntegerArgumentType.integer(1))
                         .executes(ctx -> trade(ctx.getSource(),
                             StringArgumentType.getString(ctx, "ticker"),
                             IntegerArgumentType.getInteger(ctx, "qty"),
                             false)))))
                 .then(literal("limitbuy").then(argument("ticker", StringArgumentType.word())
+                    .suggests(CommandSuggestions.TICKER)
                     .then(argument("qty", IntegerArgumentType.integer(1))
                         .then(argument("price", DoubleArgumentType.doubleArg(0))
                             .executes(ctx -> limitOrder(ctx.getSource(),
@@ -49,6 +53,7 @@ public class PlayerCommands {
                                 DoubleArgumentType.getDouble(ctx, "price"),
                                 LimitOrder.Side.BUY))))))
                 .then(literal("limitsell").then(argument("ticker", StringArgumentType.word())
+                    .suggests(CommandSuggestions.TICKER)
                     .then(argument("qty", IntegerArgumentType.integer(1))
                         .then(argument("price", DoubleArgumentType.doubleArg(0))
                             .executes(ctx -> limitOrder(ctx.getSource(),
@@ -58,11 +63,13 @@ public class PlayerCommands {
                                 LimitOrder.Side.SELL))))))
                 .then(literal("orders")      .executes(ctx -> listOrders(ctx.getSource())))
                 .then(literal("cancelorder").then(argument("ticker", StringArgumentType.word())
+                    .suggests(CommandSuggestions.TICKER)
                     .then(argument("orderId", StringArgumentType.word())
                         .executes(ctx -> cancelOrder(ctx.getSource(),
                             StringArgumentType.getString(ctx, "ticker"),
                             StringArgumentType.getString(ctx, "orderId"))))))
                 .then(literal("float").then(argument("ticker", StringArgumentType.word())
+                    .suggests(CommandSuggestions.TICKER)
                     .executes(ctx -> showFloat(ctx.getSource(), StringArgumentType.getString(ctx, "ticker")))))
                 .then(literal("pay").then(argument("player", EntityArgumentType.player())
                     .then(argument("amount", DoubleArgumentType.doubleArg(0))
@@ -75,18 +82,20 @@ public class PlayerCommands {
                             EntityArgumentType.getPlayer(ctx, "player"),
                             DoubleArgumentType.getDouble(ctx, "amount"))))))
                 .then(literal("news").executes(ctx -> news(ctx.getSource())))
-                .then(literal("tick").executes(ctx -> tickInfo(ctx.getSource())))
                 .then(literal("short").then(argument("ticker", StringArgumentType.word())
+                    .suggests(CommandSuggestions.TICKER)
                     .then(argument("qty", IntegerArgumentType.integer(1))
                         .executes(ctx -> openShort(ctx.getSource(),
                             StringArgumentType.getString(ctx, "ticker"),
                             IntegerArgumentType.getInteger(ctx, "qty"))))))
                 .then(literal("covershort").then(argument("ticker", StringArgumentType.word())
+                    .suggests(CommandSuggestions.TICKER)
                     .executes(ctx -> coverShort(ctx.getSource(),
                         StringArgumentType.getString(ctx, "ticker")))))
                 .then(literal("shorts").executes(ctx -> listShorts(ctx.getSource())))
                 .then(literal("offer").then(argument("target", EntityArgumentType.player())
                     .then(argument("ticker", StringArgumentType.word())
+                        .suggests(CommandSuggestions.TICKER)
                         .then(argument("shares", IntegerArgumentType.integer(1))
                             .then(argument("price", DoubleArgumentType.doubleArg(0.01))
                                 .executes(ctx -> offer(ctx.getSource(),
@@ -304,13 +313,11 @@ public class PlayerCommands {
 
     private static int request(ServerCommandSource src, ServerPlayerEntity target, double amount) {
         if (!(src.getEntity() instanceof ServerPlayerEntity req)) return 0;
-        MutableText btn = Text.literal(" [Pay] ").formatted(Formatting.GREEN, Formatting.BOLD)
-                .styled(s -> s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND,
-                        String.format("/qc pay %s %.2f", req.getName().getString(), amount)))
-                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                        Text.literal(String.format("Send %.1f¢ to %s", amount, req.getName().getString())))));
-        target.sendMessage(Text.literal(String.format("§e%s §7requests §e%.1f¢§7.", req.getName().getString(), amount)).append(btn));
-        req.sendMessage(Text.literal("§7Request sent to §f" + target.getName().getString()));
+        String err = PaymentRequestManager.getInstance().propose(req, target, amount, src.getServer());
+        if (err != null) {
+            src.sendError(Text.literal(err));
+            return 0;
+        }
         return 1;
     }
 
@@ -318,10 +325,14 @@ public class PlayerCommands {
         MarketEngine engine  = MarketEngine.getInstance();
         var          active  = engine.getActiveEvents();
         var          history = engine.getHistoricalNews();
-        if (active.isEmpty() && history.isEmpty()) {
-            src.sendFeedback(() -> Text.literal("§7No news yet."), false);
-            return 1;
-        }
+        MarketSeason season  = engine.getCurrentSeason();
+        long elapsed = engine.getSeasonElapsedTicks(src.getServer());
+        long remaining = Math.max(0, MarketEngine.PHASE_LENGTH_TICKS - elapsed);
+        long remainingDays = remaining / 24000L;
+        long remainingHours = (remaining % 24000L) * 10 / 24000L; // in tenths of a day -> "hours"
+        src.sendFeedback(() -> Text.literal(String.format(
+                "%s§lSEASON: §r%s%s §7(~%dd %dh remaining)",
+                season.color, season.color, season.displayName, remainingDays, remainingHours)), false);
         if (!active.isEmpty()) {
             src.sendFeedback(() -> Text.literal("§6ACTIVE CONDITIONS:"), false);
             active.forEach(e -> src.sendFeedback(() -> Text.literal("§c⚡ §f" + e.getStatusLine()), false));
@@ -330,17 +341,11 @@ public class PlayerCommands {
             src.sendFeedback(() -> Text.literal("§7RECENT HISTORY:"), false);
             history.forEach(n -> src.sendFeedback(() -> Text.literal("§7• §f" + n), false));
         }
+        if (active.isEmpty() && history.isEmpty())
+            src.sendFeedback(() -> Text.literal("§7No active events."), false);
         return 1;
     }
 
-    private static int tickInfo(ServerCommandSource src) {
-        int interval = com.quantcraft.config.QuantCraftConfig.getMarketTickInterval();
-        int cur      = com.quantcraft.QuantCraftMod.getTickCounter();
-        src.sendFeedback(() -> Text.literal(String.format(
-                "§eNext market tick in §f%d §eticks (§f%d§e elapsed / §f%d§e interval)",
-                interval - cur, cur, interval)), false);
-        return 1;
-    }
 
     private static int openShort(ServerCommandSource src, String ticker, int qty) {
         if (!(src.getEntity() instanceof ServerPlayerEntity p)) return 0;

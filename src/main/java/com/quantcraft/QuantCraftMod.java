@@ -3,6 +3,7 @@ package com.quantcraft;
 import com.quantcraft.command.AdminCommands;
 import com.quantcraft.command.PlayerCommands;
 import com.quantcraft.config.QuantCraftConfig;
+import com.quantcraft.item.CocaineCrashTracker;
 import com.quantcraft.events.MarketEventListener;
 import com.quantcraft.market.MarketEngine;
 import com.quantcraft.market.StockRegistry;
@@ -78,6 +79,10 @@ public class QuantCraftMod implements ModInitializer {
                 var state     = MarketPersistentState.getOrCreate(overworld);
                 MarketEngine.getInstance().tick(server, state);
                 state.markDirty();
+            }
+
+            for (var player : server.getPlayerManager().getPlayerList()) {
+                CocaineCrashTracker.tick(player);
             }
         });
 

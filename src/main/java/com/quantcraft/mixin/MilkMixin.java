@@ -1,8 +1,8 @@
 package com.quantcraft.mixin;
 
 import com.quantcraft.item.CocaineCrashTracker;
+import com.quantcraft.registry.ModEffects;
 import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.player.PlayerEntity;
@@ -25,11 +25,21 @@ import java.util.Set;
 public class MilkMixin {
 
     @Unique
-    private static final ThreadLocal<List<StatusEffectInstance>> CRASH_SNAPSHOT =
+    private static final ThreadLocal<List<StatusEffectInstance>> COCAINE_SNAPSHOT =
             ThreadLocal.withInitial(ArrayList::new);
 
     @Unique
-    private static final Set<StatusEffect> CRASH_EFFECTS = Set.of(
+    private static final Set<net.minecraft.entity.effect.StatusEffect> HIGH_EFFECTS = Set.of(
+            StatusEffects.SPEED,
+            StatusEffects.STRENGTH,
+            StatusEffects.HASTE,
+            StatusEffects.JUMP_BOOST,
+            StatusEffects.NIGHT_VISION,
+            StatusEffects.POISON
+    );
+
+    @Unique
+    private static final Set<net.minecraft.entity.effect.StatusEffect> CRASH_EFFECTS = Set.of(
             StatusEffects.SLOWNESS,
             StatusEffects.WEAKNESS,
             StatusEffects.MINING_FATIGUE,
@@ -38,58 +48,55 @@ public class MilkMixin {
     );
 
     @Inject(method = "finishUsing", at = @At("HEAD"))
-    private void snapshotCrashEffects(ItemStack stack, World world, LivingEntity user,
-                                      CallbackInfoReturnable<ItemStack> cir) {
+    private void snapshotCocaineEffects(ItemStack stack, World world, LivingEntity user,
+                                        CallbackInfoReturnable<ItemStack> cir) {
         if (world.isClient) return;
-
-        // FIXED: Check ServerPlayerEntity type early to prevent crashes
         if (!(user instanceof ServerPlayerEntity player)) return;
-        if (!CocaineCrashTracker.CRASHING.contains(player.getUuid())) return;
 
-        List<StatusEffectInstance> snapshot = CRASH_SNAPSHOT.get();
+        boolean isHigh = CocaineCrashTracker.HIGH.contains(player.getUuid());
+        boolean isCrashing = CocaineCrashTracker.CRASHING.contains(player.getUuid());
+        if (!isHigh && !isCrashing) return;
+
+        List<StatusEffectInstance> snapshot = COCAINE_SNAPSHOT.get();
         snapshot.clear();
+
+        if (player.hasStatusEffect(ModEffects.COCAINE_HIGH)) {
+            StatusEffectInstance hi = player.getStatusEffect(ModEffects.COCAINE_HIGH);
+            snapshot.add(new StatusEffectInstance(hi.getEffectType(), hi.getDuration(),
+                    hi.getAmplifier(), hi.isAmbient(), hi.shouldShowParticles(), hi.shouldShowIcon()));
+        }
+
         for (StatusEffectInstance instance : player.getStatusEffects()) {
-            if (CRASH_EFFECTS.contains(instance.getEffectType())) {
-                snapshot.add(new StatusEffectInstance(
-                        instance.getEffectType(),
-                        instance.getDuration(),
-                        instance.getAmplifier(),
-                        instance.isAmbient(),
-                        instance.shouldShowParticles(),
-                        instance.shouldShowIcon()
-                ));
+            if ((isHigh && HIGH_EFFECTS.contains(instance.getEffectType())) ||
+                (isCrashing && CRASH_EFFECTS.contains(instance.getEffectType()))) {
+                snapshot.add(new StatusEffectInstance(instance.getEffectType(), instance.getDuration(),
+                        instance.getAmplifier(), instance.isAmbient(), instance.shouldShowParticles(),
+                        instance.shouldShowIcon()));
             }
         }
     }
 
     @Inject(method = "finishUsing", at = @At("RETURN"))
-    private void reapplyCrashEffects(ItemStack stack, World world, LivingEntity user,
-                                     CallbackInfoReturnable<ItemStack> cir) {
+    private void reapplyCocaineEffects(ItemStack stack, World world, LivingEntity user,
+                                       CallbackInfoReturnable<ItemStack> cir) {
         if (world.isClient) return;
 
-        List<StatusEffectInstance> snapshot = CRASH_SNAPSHOT.get();
+        List<StatusEffectInstance> snapshot = COCAINE_SNAPSHOT.get();
         if (snapshot.isEmpty()) {
-            CRASH_SNAPSHOT.remove();
+            COCAINE_SNAPSHOT.remove();
             return;
         }
 
-        // FIXED: Validate ServerPlayerEntity and connection
-        if (!(user instanceof ServerPlayerEntity sp)) {
-            CRASH_SNAPSHOT.remove();
-            return;
-        }
-
-        // FIXED: Validate player is still connected
-        if (sp.isDisconnected() || sp.getServer() == null) {
-            CRASH_SNAPSHOT.remove();
+        if (!(user instanceof ServerPlayerEntity sp) || sp.isDisconnected()) {
+            COCAINE_SNAPSHOT.remove();
             return;
         }
 
         for (StatusEffectInstance instance : snapshot) {
             sp.addStatusEffect(instance);
         }
-        CRASH_SNAPSHOT.remove();
+        COCAINE_SNAPSHOT.remove();
 
-        sp.sendMessage(Text.literal("§cThe crash lingers..."), true);
+        sp.sendMessage(Text.literal("§cMilk can't wash this away..."), true);
     }
 }

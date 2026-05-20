@@ -2,10 +2,13 @@ package com.quantcraft.screen;
 
 import com.quantcraft.network.ModPacketsClient;
 import com.quantcraft.screen.CommodityExchangeScreenHandler.CommodityRow;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
 import java.util.List;
 
@@ -31,15 +34,24 @@ public class CommodityExchangeScreen extends HandledScreen<CommodityExchangeScre
     @Override protected void init() {
         super.init();
         int rx = (width - backgroundWidth) / 2 + 210, y = (height - backgroundHeight) / 2;
-        addDrawableChild(ButtonWidget.builder(Text.literal("Buy 1"),   btn -> click(100)).dimensions(rx + 5,  y + 60,  55, 16).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Sell 1"),  btn -> click(101)).dimensions(rx + 65, y + 60,  55, 16).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Buy 16"),  btn -> click(102)).dimensions(rx + 5,  y + 80,  55, 16).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Sell 16"), btn -> click(103)).dimensions(rx + 65, y + 80,  55, 16).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Buy 64"),  btn -> click(104)).dimensions(rx + 5,  y + 100, 55, 16).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Sell 64"), btn -> click(105)).dimensions(rx + 65, y + 100, 55, 16).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Buy 1"),   btn -> click(100)).dimensions(rx + 5,  y + 55,  55, 16).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Sell 1"),  btn -> click(101)).dimensions(rx + 65, y + 55,  55, 16).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Buy 16"),  btn -> click(102)).dimensions(rx + 5,  y + 74,  55, 16).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Sell 16"), btn -> click(103)).dimensions(rx + 65, y + 74,  55, 16).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Buy 64"),  btn -> click(104)).dimensions(rx + 5,  y + 93,  55, 16).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Sell 64"), btn -> click(105)).dimensions(rx + 65, y + 93,  55, 16).build());
     }
 
     private void click(int id) { ModPacketsClient.sendButtonClick(handler.syncId, id); }
+
+    private int countHeld(Item item) {
+        var p = MinecraftClient.getInstance().player;
+        if (p == null) return 0;
+        int total = 0;
+        for (ItemStack s : p.getInventory().main)
+            if (!s.isEmpty() && s.getItem() == item) total += s.getCount();
+        return total;
+    }
 
     @Override protected void drawBackground(DrawContext ctx, float d, int mx, int my) {
         int x = (width - backgroundWidth) / 2, y = (height - backgroundHeight) / 2;
@@ -67,13 +79,15 @@ public class CommodityExchangeScreen extends HandledScreen<CommodityExchangeScre
             ctx.drawText(textRenderer, row.def().ticker(), 6, ry, 0xFFddddee, false);
             ctx.drawText(textRenderer, String.format("%.1f", row.buyPrice()),  88,  ry, GREEN, false);
             ctx.drawText(textRenderer, String.format("%.1f", row.sellPrice()), 132, ry, RED,   false);
-            if (row.playerHeld() > 0)
-                ctx.drawText(textRenderer, String.valueOf(row.playerHeld()), 174, ry, GOLD, false);
+            int live = countHeld(row.def().getItem());
+            if (live > 0)
+                ctx.drawText(textRenderer, String.valueOf(live), 174, ry, GOLD, false);
         }
         // Right panel
         int rx = 212;
         if (sel < rows.size()) {
-            CommodityRow r = rows.get(sel);
+            CommodityRow r    = rows.get(sel);
+            int          live = countHeld(r.def().getItem());
             ctx.drawText(textRenderer, r.def().displayName(), rx, 6, GOLD, false);
             ctx.fill(rx, 16, backgroundWidth - 4, 17, 0xFF334455);
             ctx.drawText(textRenderer, "Buy:",  rx,      22, GRAY, false);
@@ -81,7 +95,7 @@ public class CommodityExchangeScreen extends HandledScreen<CommodityExchangeScre
             ctx.drawText(textRenderer, "Sell:", rx,      32, GRAY, false);
             ctx.drawText(textRenderer, String.format("%.2f¢", r.sellPrice()), rx + 30, 32, RED,   false);
             ctx.drawText(textRenderer, "Held:", rx,      42, GRAY, false);
-            ctx.drawText(textRenderer, r.playerHeld() + " items", rx + 32, 42, 0xFFffffff, false);
+            ctx.drawText(textRenderer, live + " items", rx + 32, 42, 0xFFffffff, false);
             ctx.fill(rx, 52, backgroundWidth - 4, 53, 0xFF334455);
         }
     }
