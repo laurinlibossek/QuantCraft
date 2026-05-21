@@ -330,8 +330,8 @@ public class PlayerCommands {
             "§e/qc pay <player> <amount> §7— Transfer funds to another player",
             "§e/qc request <player> <amount> §7— Send a payment request to another player",
             "§e/qc news §7— Current season, active events, recent market history",
-            "§e/qc pin <ticker> §7— Pin a stock to your HUD overlay",
-            "§e/qc unpin <ticker> §7— Remove a stock from your HUD overlay",
+            "§e/pin <ticker> §7— Pin a stock to your HUD overlay",
+            "§e/unpin <ticker> §7— Remove a stock from your HUD overlay",
         };
         for (String line : lines) src.sendFeedback(() -> Text.literal(line), false);
         return 1;
