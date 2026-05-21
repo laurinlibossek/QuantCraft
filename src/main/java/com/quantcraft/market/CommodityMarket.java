@@ -22,12 +22,19 @@ public class CommodityMarket {
         StockDefinition def = StockRegistry.get(ticker);
         StockState      ss  = MarketEngine.getInstance().getState(ticker);
         if (def == null || ss == null) return false;
-        double cost = def.getItemBuyPrice(ss.getCurrentPrice()) * qty;
+        double pricePerItem = def.getItemBuyPrice(ss.getCurrentPrice());
         PlayerPortfolio portfolio = ps.getPortfolio(player.getUuid());
+        double cost = pricePerItem * qty;
         if (portfolio.getBalance() < cost) return false;
-        ItemStack items = new ItemStack(def.getItem(), qty);
-        if (!player.getInventory().insertStack(items)) return false;
         portfolio.deductBalance(cost);
+        ItemStack items = new ItemStack(def.getItem(), qty);
+        player.getInventory().insertStack(items);
+        if (!items.isEmpty()) {
+            player.getWorld().spawnEntity(new net.minecraft.entity.ItemEntity(
+                    player.getWorld(),
+                    player.getX(), player.getY(), player.getZ(),
+                    items));
+        }
         ss.applyEventPressure(+qty * def.basePrice() / def.totalShares() * 2.0);
         ss.applySupplyPressure(+qty * def.basePrice() * 0.5 / def.totalShares());
         ps.markDirty();

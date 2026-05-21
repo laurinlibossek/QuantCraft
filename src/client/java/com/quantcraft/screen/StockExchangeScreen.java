@@ -25,7 +25,6 @@ public class StockExchangeScreen extends HandledScreen<StockExchangeScreenHandle
     private static final int MESSAGE_ROW_H = 11;
 
     private int scroll = 0, activeTab = 0;
-    private int messageScrollOffset = 0;
     private TextFieldWidget withdrawField;
 
     public StockExchangeScreen(StockExchangeScreenHandler h, PlayerInventory inv, Text title) {
@@ -38,10 +37,10 @@ public class StockExchangeScreen extends HandledScreen<StockExchangeScreenHandle
         super.init();
         int x = (width - backgroundWidth) / 2, y = (height - backgroundHeight) / 2;
         // Trade buttons — placed in the empty space between stock rows (end ~y+173) and message panel (y+230)
-        addDrawableChild(ButtonWidget.builder(Text.literal("Buy 1"),   btn -> click(100)).dimensions(x + 5,   y + 177, 52, 18).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Sell 1"),  btn -> click(101)).dimensions(x + 60,  y + 177, 55, 18).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Buy 64"),  btn -> click(102)).dimensions(x + 120, y + 177, 55, 18).build());
-        addDrawableChild(ButtonWidget.builder(Text.literal("Sell 64"), btn -> click(103)).dimensions(x + 180, y + 177, 60, 18).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Buy 1"),   btn -> click(100)).dimensions(x + 5,   y + 177, 46, 18).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Sell 1"),  btn -> click(101)).dimensions(x + 53,  y + 177, 46, 18).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Buy 64"),  btn -> click(102)).dimensions(x + 101, y + 177, 51, 18).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Sell 64"), btn -> click(103)).dimensions(x + 154, y + 177, 51, 18).build());
         withdrawField = new TextFieldWidget(textRenderer, x + backgroundWidth - 118, y + 177, 60, 18, Text.literal(""));
         withdrawField.setMaxLength(7);
         withdrawField.setText("");
@@ -238,30 +237,17 @@ public class StockExchangeScreen extends HandledScreen<StockExchangeScreenHandle
     }
 
     @Override public boolean mouseScrolled(double mx, double my, double h, double v) {
-        int panelY = (height - backgroundHeight) / 2 + 222;
-        int panelX = (width - backgroundWidth) / 2;
-
-        // Check if mouse is over message panel
-        if (my >= panelY && my < panelY + MESSAGE_PANEL_H &&
-            mx >= panelX && mx < panelX + backgroundWidth) {
-
-            int visibleRows = (MESSAGE_PANEL_H - 18) / MESSAGE_ROW_H;
-            int maxScroll = Math.max(0, handler.messageHistory.size() - visibleRows);
-
-            messageScrollOffset -= (int) Math.signum(v);
-            messageScrollOffset = Math.max(0, Math.min(maxScroll, messageScrollOffset));
-            return true;
-        }
-
         int max = Math.max(0, handler.stocks.size() - ROWS);
         scroll = (int)Math.max(0, Math.min(max, scroll - v));
         return true;
     }
 
-    public void onPortfolioUpdate(double balance, Map<String, Integer> holdings) {
+    public void onPortfolioUpdate(double balance, Map<String, Integer> holdings, List<TradeMessage> messages) {
         handler.playerBalance = balance;
         handler.playerHoldings.clear();
         handler.playerHoldings.putAll(holdings);
+        handler.messageHistory.clear();
+        handler.messageHistory.addAll(messages);
     }
 
     public void onMarketUpdate(java.util.Map<String, double[]> updates) {
@@ -282,45 +268,34 @@ public class StockExchangeScreen extends HandledScreen<StockExchangeScreenHandle
         ctx.fill(panelX, panelY, panelX + backgroundWidth, panelY + MESSAGE_PANEL_H, 0xFF0d1117);
 
         // Header
-        ctx.drawText(textRenderer, "Trade History", panelX + 4, panelY + 4, GOLD, false);
+        // ctx.drawText(textRenderer, "Trade History", panelX + 4, panelY + 4, GOLD, false);
 
-        // Scrollable message area
-        int msgY = panelY + 16;
-        int visibleRows = (MESSAGE_PANEL_H - 18) / MESSAGE_ROW_H;
+        int msgY = panelY + 4;
+        int visibleRows = (MESSAGE_PANEL_H - 8) / MESSAGE_ROW_H;
         List<TradeMessage> messages = handler.messageHistory;
 
-        int startIdx = Math.min(messageScrollOffset, Math.max(0, messages.size() - visibleRows));
-        int endIdx = Math.min(startIdx + visibleRows, messages.size());
-
         if (messages.isEmpty()) {
-            ctx.drawText(textRenderer, "No messages yet.", panelX + 4, msgY, 0xFF666677, false);
+            ctx.drawText(textRenderer, "No recent activity.", panelX + 4, msgY, 0xFF666677, false);
         } else {
-            for (int i = startIdx; i < endIdx; i++) {
+            // messages are stored newest-first; show oldest-to-newest top-to-bottom
+            int visible = Math.min(messages.size(), visibleRows);
+            for (int i = visible - 1; i >= 0; i--) {
                 TradeMessage msg = messages.get(i);
                 int color = switch (msg.type()) {
-                    case TRADE -> GREEN;      // Green
-                    case ERROR -> RED;        // Red
-                    case SUCCESS -> GOLD;     // Gold
-                    case INFO -> GRAY;        // Gray
+                    case TRADE -> GREEN;
+                    case ERROR -> RED;
+                    case SUCCESS -> GOLD;
+                    case INFO -> GRAY;
                 };
-
-                // Truncate long messages
                 String displayText = msg.text();
                 if (textRenderer.getWidth(displayText) > backgroundWidth - 12) {
-                    while (textRenderer.getWidth(displayText + "...") > backgroundWidth - 12 && displayText.length() > 0) {
+                    while (textRenderer.getWidth(displayText + "...") > backgroundWidth - 12 && displayText.length() > 0)
                         displayText = displayText.substring(0, displayText.length() - 1);
-                    }
                     displayText += "...";
                 }
-
                 ctx.drawText(textRenderer, displayText, panelX + 4, msgY, color, false);
                 msgY += MESSAGE_ROW_H;
             }
-        }
-
-        // Scroll indicator
-        if (messages.size() > visibleRows) {
-            ctx.drawText(textRenderer, "↕", panelX + backgroundWidth - 12, panelY + 4, 0xFF666677, false);
         }
     }
 

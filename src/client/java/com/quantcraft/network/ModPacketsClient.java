@@ -75,9 +75,17 @@ public class ModPacketsClient {
                 holdings.put(tk, buf.readInt());
                 avgCosts.put(tk, buf.readDouble());
             }
+            int msgCount = buf.readInt();
+            List<TradeMessage> messages = new ArrayList<>(msgCount);
+            for (int i = 0; i < msgCount; i++) {
+                long ts = buf.readLong();
+                String text = buf.readString();
+                TradeMessage.MessageType type = buf.readEnumConstant(TradeMessage.MessageType.class);
+                messages.add(new TradeMessage(ts, text, type));
+            }
             client.execute(() -> {
                 if (client.currentScreen instanceof StockExchangeScreen tps) {
-                    tps.onPortfolioUpdate(balance, holdings);
+                    tps.onPortfolioUpdate(balance, holdings, messages);
                 } else if (client.currentScreen instanceof CommodityExchangeScreen ces) {
                     ces.onPortfolioUpdate(balance);
                 } else {

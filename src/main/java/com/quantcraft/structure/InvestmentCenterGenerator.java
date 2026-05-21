@@ -36,8 +36,9 @@ public class InvestmentCenterGenerator extends Structure {
         StructureTemplateManager manager = context.structureTemplateManager();
         BlockPos pos = new BlockPos(x, y, z);
 
+        boolean withered = context.random().nextBoolean();
         return Optional.of(new StructurePosition(pos, collector -> {
-            collector.addPiece(new InvestmentCenterPiece(manager, pos, rotation));
+            collector.addPiece(new InvestmentCenterPiece(manager, pos, rotation, withered));
         }));
     }
 

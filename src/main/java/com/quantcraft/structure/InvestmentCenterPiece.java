@@ -9,11 +9,14 @@ import net.minecraft.world.ServerWorldAccess;
 
 public class InvestmentCenterPiece extends SimpleStructurePiece {
 
-    private static final Identifier TEMPLATE = new Identifier("quantcraft", "investors_center");
+    private static final Identifier TEMPLATE_NORMAL   = new Identifier("quantcraft", "investors_center");
+    private static final Identifier TEMPLATE_WITHERED = new Identifier("quantcraft", "investors_center_withered");
 
-    public InvestmentCenterPiece(StructureTemplateManager manager, BlockPos pos, BlockRotation rotation) {
-        super(ModStructures.INVESTMENT_CENTER_PIECE, 0, manager, TEMPLATE,
-                TEMPLATE.toString(), makePlacement(rotation), pos);
+    public InvestmentCenterPiece(StructureTemplateManager manager, BlockPos pos, BlockRotation rotation, boolean withered) {
+        super(ModStructures.INVESTMENT_CENTER_PIECE, 0, manager,
+                withered ? TEMPLATE_WITHERED : TEMPLATE_NORMAL,
+                (withered ? TEMPLATE_WITHERED : TEMPLATE_NORMAL).toString(),
+                makePlacement(rotation), pos);
     }
 
     public InvestmentCenterPiece(StructureContext context, NbtCompound nbt) {
