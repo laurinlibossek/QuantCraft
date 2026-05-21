@@ -480,11 +480,11 @@ public class MarketEngine {
         if (!marketOpen) return ambient;
 
         double specific = switch (sec) {
-            case ARCANE       -> (full ? base * 0.008 : 0);
+            case ARCANE       -> full ? base * 0.008 : 0;
             case MINING       -> thunder ? base * 0.006 : 0;
-            case AGRARIAN     -> base * 0.002;
+            case AGRARIAN     -> thunder ? -base * 0.003 : 0;
             case LUMBER       -> thunder ? -base * 0.002 : 0;
-            case LIVESTOCK    -> base * 0.001;
+            case LIVESTOCK    -> 0;
             case MANUFACTURED -> 0;
         };
         return ambient + specific;

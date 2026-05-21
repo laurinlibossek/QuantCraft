@@ -1,13 +1,13 @@
 package com.quantcraft.market;
 
 public enum MarketSeason {
-    RECOVERY   ("Recovery",    "§a", +0.00025,  0.85, 1.2,
+    RECOVERY   ("Recovery",    "§a", +0.00060,  0.85, 1.2,
             "§aThe economy begins to recover — slow gains ahead. Dividends are strong."),
-    EXPANSION  ("Expansion",   "§2", +0.0005,   1.0,  1.0,
+    EXPANSION  ("Expansion",   "§2", +0.00120,  1.0,  1.0,
             "§2Markets expanding — broad growth across all sectors."),
-    PEAK       ("Peak",        "§e", +0.000083, 1.5,  0.7,
+    PEAK       ("Peak",        "§e", +0.00020,  1.5,  0.7,
             "§eMarket at peak — prices volatile, dividends lean. Consider taking profits."),
-    CONTRACTION("Contraction", "§c", -0.000417, 1.2,  0.5,
+    CONTRACTION("Contraction", "§c", -0.00120,  1.2,  0.5,
             "§cContraction underway — prices falling steadily. Shorts and buyers await the bottom.");
 
     public final String displayName;
