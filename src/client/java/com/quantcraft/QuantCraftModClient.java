@@ -3,6 +3,8 @@ package com.quantcraft;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.quantcraft.hud.TickerHudOverlay;
 import com.quantcraft.hud.TickerPins;
+import com.quantcraft.network.ClientMarketCache;
+import net.minecraft.command.CommandSource;
 import com.quantcraft.registry.ModScreenHandlerTypes;
 import com.quantcraft.screen.CommodityExchangeScreen;
 import com.quantcraft.screen.StockExchangeScreen;
@@ -24,6 +26,7 @@ public class QuantCraftModClient implements ClientModInitializer {
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
             dispatcher.register(ClientCommandManager.literal("pin")
                 .then(ClientCommandManager.argument("ticker", StringArgumentType.word())
+                    .suggests((ctx, b) -> CommandSource.suggestMatching(ClientMarketCache.getAll().keySet(), b))
                     .executes(ctx -> {
                         String ticker = StringArgumentType.getString(ctx, "ticker").toUpperCase();
                         boolean pinned = TickerPins.pin(ticker);
@@ -36,6 +39,7 @@ public class QuantCraftModClient implements ClientModInitializer {
             );
             dispatcher.register(ClientCommandManager.literal("unpin")
                 .then(ClientCommandManager.argument("ticker", StringArgumentType.word())
+                    .suggests((ctx, b) -> CommandSource.suggestMatching(TickerPins.get(), b))
                     .executes(ctx -> {
                         String ticker = StringArgumentType.getString(ctx, "ticker").toUpperCase();
                         boolean removed = TickerPins.unpin(ticker);
