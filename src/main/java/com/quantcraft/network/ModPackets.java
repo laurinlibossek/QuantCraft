@@ -4,6 +4,7 @@ import com.quantcraft.QuantCraftMod;
 import com.quantcraft.blockentity.QuotronBlockEntity;
 import com.quantcraft.item.NewspaperItem;
 import com.quantcraft.market.*;
+import com.quantcraft.screen.TradeMessage;
 import net.fabricmc.fabric.api.networking.v1.*;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.server.MinecraftServer;
@@ -119,6 +120,9 @@ public class ModPackets {
                     if (dollarStack.getCount() > 0) break;
                 }
                 port.deductBalance(given);
+                ps.addPlayerMessage(player.getUuid(),
+                        String.format("Withdrew %d¢ (%.1f¢ remaining)", given, port.getBalance()),
+                        com.quantcraft.screen.TradeMessage.MessageType.INFO);
                 ps.markDirty();
                 for (int s = 0; s < player.getInventory().size(); s++) {
                     player.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.ScreenHandlerSlotUpdateS2CPacket(
@@ -192,6 +196,13 @@ public class ModPackets {
             buf.writeString(e.getKey());
             buf.writeInt(e.getValue());
             buf.writeDouble(avgCosts.getOrDefault(e.getKey(), 0.0));
+        }
+        List<TradeMessage> messages = ps.getPlayerMessages(player.getUuid());
+        buf.writeInt(messages.size());
+        for (TradeMessage msg : messages) {
+            buf.writeLong(msg.timestamp());
+            buf.writeString(msg.text());
+            buf.writeEnumConstant(msg.type());
         }
         ServerPlayNetworking.send(player, S2C_PORTFOLIO_DATA, buf);
     }

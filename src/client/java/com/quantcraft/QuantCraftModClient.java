@@ -22,28 +22,30 @@ public class QuantCraftModClient implements ClientModInitializer {
         TickerHudOverlay.register();
 
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
-            dispatcher.register(ClientCommandManager.literal("pin")
-                .then(ClientCommandManager.argument("ticker", StringArgumentType.word())
-                    .executes(ctx -> {
-                        String ticker = StringArgumentType.getString(ctx, "ticker").toUpperCase();
-                        boolean pinned = TickerPins.pin(ticker);
-                        ctx.getSource().sendFeedback(Text.literal(pinned
-                                ? "§aPinned §f" + ticker + "§a to HUD."
-                                : "§eAlready pinned or cap reached (max " + TickerPins.MAX_PINS + ")."));
-                        return pinned ? 1 : 0;
-                    })
+            dispatcher.register(ClientCommandManager.literal("qc")
+                .then(ClientCommandManager.literal("pin")
+                    .then(ClientCommandManager.argument("ticker", StringArgumentType.word())
+                        .executes(ctx -> {
+                            String ticker = StringArgumentType.getString(ctx, "ticker").toUpperCase();
+                            boolean pinned = TickerPins.pin(ticker);
+                            ctx.getSource().sendFeedback(Text.literal(pinned
+                                    ? "§aPinned §f" + ticker + "§a to HUD."
+                                    : "§eAlready pinned or cap reached (max " + TickerPins.MAX_PINS + ")."));
+                            return pinned ? 1 : 0;
+                        })
+                    )
                 )
-            );
-            dispatcher.register(ClientCommandManager.literal("unpin")
-                .then(ClientCommandManager.argument("ticker", StringArgumentType.word())
-                    .executes(ctx -> {
-                        String ticker = StringArgumentType.getString(ctx, "ticker").toUpperCase();
-                        boolean removed = TickerPins.unpin(ticker);
-                        ctx.getSource().sendFeedback(Text.literal(removed
-                                ? "§7Unpinned " + ticker + "."
-                                : "§e" + ticker + " was not pinned."));
-                        return removed ? 1 : 0;
-                    })
+                .then(ClientCommandManager.literal("unpin")
+                    .then(ClientCommandManager.argument("ticker", StringArgumentType.word())
+                        .executes(ctx -> {
+                            String ticker = StringArgumentType.getString(ctx, "ticker").toUpperCase();
+                            boolean removed = TickerPins.unpin(ticker);
+                            ctx.getSource().sendFeedback(Text.literal(removed
+                                    ? "§7Unpinned " + ticker + "."
+                                    : "§e" + ticker + " was not pinned."));
+                            return removed ? 1 : 0;
+                        })
+                    )
                 )
             );
         });

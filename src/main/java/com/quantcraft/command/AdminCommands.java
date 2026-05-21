@@ -73,6 +73,7 @@ public class AdminCommands {
                         .executes(ctx -> seasonSet(ctx.getSource(), StringArgumentType.getString(ctx, "phase"))))))
                 .then(literal("cancelorders").then(argument("player", EntityArgumentType.player())
                     .executes(ctx -> cancelOrders(ctx.getSource(), EntityArgumentType.getPlayer(ctx, "player")))))
+                .then(literal("help").executes(ctx -> help(ctx.getSource())))
                 .then(literal("bot").then(argument("ticker", StringArgumentType.word())
                     .suggests(CommandSuggestions.TICKER)
                     .then(literal("enable") .executes(ctx -> botEnabled(ctx.getSource(), StringArgumentType.getString(ctx, "ticker"), true)))
@@ -238,6 +239,37 @@ public class AdminCommands {
         src.sendFeedback(() -> Text.literal(String.format(
                 "[QCAdmin] Season: %s%s §7| Elapsed: %d ticks | Remaining: %d ticks | Next: %s",
                 season.color, season.displayName, elapsed, remaining, season.next().displayName)), false);
+        return 1;
+    }
+
+    private static int help(ServerCommandSource src) {
+        String[] lines = {
+            "§4§l=== QuantCraft Admin Commands ===",
+            "§c/qcadmin crash <ticker|sector> §7— Heavy downward pressure on a stock or sector",
+            "§c/qcadmin boom <ticker|sector> §7— Heavy upward pressure on a stock or sector",
+            "§c/qcadmin setprice <ticker> <price> §7— Force a stock to an exact price",
+            "§c/qcadmin give <player> <amount> §7— Add funds to a player's account",
+            "§c/qcadmin take <player> <amount> §7— Deduct funds from a player's account",
+            "§c/qcadmin setbalance <player> <amount> §7— Set a player's balance to an exact value",
+            "§c/qcadmin reset market §7— Reset all prices to base values",
+            "§c/qcadmin reset portfolios §7— Wipe all player portfolios",
+            "§c/qcadmin reset all §7— Reset both prices and portfolios",
+            "§c/qcadmin freeze §7— Pause the entire market simulation",
+            "§c/qcadmin unfreeze §7— Resume the market simulation",
+            "§c/qcadmin multiplier <0.1-10> §7— Scale global volatility",
+            "§c/qcadmin event <event> §7— Manually fire a market event",
+            "§c/qcadmin info <ticker> §7— Debug dump for a stock",
+            "§c/qcadmin listplayers §7— List all players with cash and total value",
+            "§c/qcadmin season §7— Show current season and remaining ticks",
+            "§c/qcadmin season set <phase> §7— Force the market into a specific season",
+            "§c/qcadmin cancelorders <player> §7— Cancel all limit orders for a player",
+            "§c/qcadmin bot <ticker> enable|disable §7— Enable/disable liquidity bot",
+            "§c/qcadmin bot <ticker> info §7— Show bot state",
+            "§c/qcadmin bot <ticker> cash <amount> §7— Set bot cash reserve",
+            "§c/qcadmin bot <ticker> shares <amount> §7— Set bot share reserve",
+            "§c/qcadmin bot <ticker> spread <value> §7— Set bot bid/ask spread",
+        };
+        for (String line : lines) src.sendFeedback(() -> Text.literal(line), false);
         return 1;
     }
 

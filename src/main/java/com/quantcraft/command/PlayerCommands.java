@@ -68,9 +68,7 @@ public class PlayerCommands {
                         .executes(ctx -> cancelOrder(ctx.getSource(),
                             StringArgumentType.getString(ctx, "ticker"),
                             StringArgumentType.getString(ctx, "orderId"))))))
-                .then(literal("float").then(argument("ticker", StringArgumentType.word())
-                    .suggests(CommandSuggestions.TICKER)
-                    .executes(ctx -> showFloat(ctx.getSource(), StringArgumentType.getString(ctx, "ticker")))))
+                .then(literal("cancelorders").executes(ctx -> cancelAllOrders(ctx.getSource())))
                 .then(literal("pay").then(argument("player", EntityArgumentType.player())
                     .then(argument("amount", DoubleArgumentType.doubleArg(0))
                         .executes(ctx -> pay(ctx.getSource(),
@@ -104,6 +102,7 @@ public class PlayerCommands {
                                     IntegerArgumentType.getInteger(ctx, "shares"),
                                     DoubleArgumentType.getDouble(ctx, "price"))))))))
                 .then(literal("pnl").executes(ctx -> sendPortfolio(ctx.getSource())))
+                .then(literal("help").executes(ctx -> help(ctx.getSource())))
             )
         );
     }
@@ -284,17 +283,57 @@ public class PlayerCommands {
         return 1;
     }
 
-    private static int showFloat(ServerCommandSource src, String ticker) {
-        String          t   = ticker.toUpperCase();
-        StockDefinition def = StockRegistry.get(t);
-        StockState      ss  = MarketEngine.getInstance().getState(t);
-        if (def == null || ss == null) { src.sendError(Text.literal("Unknown: " + t)); return 0; }
-        LiquidityBot bot       = MarketEngine.getInstance().getBot(t);
-        int          botShares = bot != null ? bot.getShareReserve() : 0;
-        src.sendFeedback(() -> Text.literal(String.format(
-                "§e%s §7Float: Total:§f%,d §7Player:§f%,d §7Bot:§f%,d §7Avail:§f%,d",
-                t, def.totalShares(), ss.getSharesHeld() - botShares, botShares,
-                ss.getAvailableShares(def.totalShares()))), false);
+    private static int cancelAllOrders(ServerCommandSource src) {
+        if (!(src.getEntity() instanceof ServerPlayerEntity p)) return 0;
+        if (!nearTradingPost(p, src)) return 0;
+        var ps = MarketPersistentState.getOrCreate(src.getServer().getOverworld());
+        int count = 0;
+        for (StockDefinition def : StockRegistry.getAll()) {
+            StockState ss = MarketEngine.getInstance().getState(def.ticker());
+            if (ss == null) continue;
+            for (LimitOrder o : ss.getOrderBook().getAll()) {
+                if (!o.getPlayerUuid().equals(p.getUuid())) continue;
+                if (o.getSide() == LimitOrder.Side.BUY)
+                    ps.getPortfolio(p.getUuid()).addBalance(o.getLimitPrice() * o.getRemainingQty());
+                else
+                    ps.getPortfolio(p.getUuid()).addShares(o.getTicker(), o.getRemainingQty());
+                count++;
+            }
+            ss.getOrderBook().cancelAllForPlayer(p.getUuid());
+        }
+        ps.markDirty();
+        if (count == 0) { src.sendFeedback(() -> Text.literal("§7No open orders."), false); return 0; }
+        final int c = count;
+        src.sendFeedback(() -> Text.literal("§aCancelled §f" + c + "§a order(s). Assets returned."), false);
+        com.quantcraft.network.ModPackets.sendPortfolioToClient(p);
+        return 1;
+    }
+
+    private static int help(ServerCommandSource src) {
+        String[] lines = {
+            "§6§l=== QuantCraft Commands ===",
+            "§e/qc balance §7— Show your cash balance",
+            "§e/qc portfolio §7— List share holdings with market value",
+            "§e/qc price <ticker> §7— Price, spread, daily change, sparkline",
+            "§e/qc prices [sector] §7— All stock prices, optionally filtered by sector",
+            "§e/qc buy <ticker> <qty> §7— Market buy (near Stock Exchange)",
+            "§e/qc sell <ticker> <qty> §7— Market sell (near Stock Exchange)",
+            "§e/qc limitbuy <ticker> <qty> <price> §7— Place a limit buy order (near Stock Exchange)",
+            "§e/qc limitsell <ticker> <qty> <price> §7— Place a limit sell order (near Stock Exchange)",
+            "§e/qc orders §7— List your open limit orders",
+            "§e/qc cancelorder <ticker> <orderId> §7— Cancel a specific limit order by ID prefix",
+            "§e/qc cancelorders §7— Cancel all your limit orders and return assets",
+            "§e/qc short <ticker> <qty> §7— Open a short position (near Stock Exchange)",
+            "§e/qc covershort <ticker> §7— Close a short and settle P&L (near Stock Exchange)",
+            "§e/qc shorts §7— List your open short positions",
+            "§e/qc offer <player> <ticker> <shares> <price> §7— Propose a direct OTC trade",
+            "§e/qc pay <player> <amount> §7— Transfer funds to another player",
+            "§e/qc request <player> <amount> §7— Send a payment request to another player",
+            "§e/qc news §7— Current season, active events, recent market history",
+            "§e/qc pin <ticker> §7— Pin a stock to your HUD overlay",
+            "§e/qc unpin <ticker> §7— Remove a stock from your HUD overlay",
+        };
+        for (String line : lines) src.sendFeedback(() -> Text.literal(line), false);
         return 1;
     }
 
