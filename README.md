@@ -1,6 +1,8 @@
 # QuantCraft
 
-A minecraft mod that runs a live stock market driven entirely by in-game player behavior and world events.
+A Minecraft mod that runs a live stock market driven entirely by in-game player behavior and world events.
+
+Built to teach players how real markets work (order books, limit orders, short selling, dividends and market making) in a world they already know.
 
 ## How the market works
 
@@ -31,11 +33,6 @@ All market state — prices, candle history, player portfolios, limit orders, sh
 Limit orders escrow the tax at placement time to prevent evasion on fill. Unfilled portions get the escrowed tax refunded on cancellation.
 
 Short selling requires 100% margin upfront. There's no free leverage from immediate proceeds. Short size is capped at 25% of the bot's liquidity per position to prevent market manipulation.
-
-## Mixins
-
-- `CocaineCrashTracker` — tick-based polling replaces the old `onStatusEffectRemoved` mixin to avoid `ConcurrentModificationException` when crash effects expire.
-- `MilkMixin` — snapshots active crash effects before milk clears them, then reapplies them after. Cocaine crashes are permanent until they wear off naturally.
 
 ## Stocks
 
@@ -109,4 +106,3 @@ Cloth Config / ModMenu. Configurable fields:
 - `taxRate` — transaction tax (default `0.02`)
 - `marketTickInterval` — ticks between price updates
 - `volatilityMultiplier` — global multiplier applied to all stock volatility
-- `cocaineCraftingEnabled` — toggle cocaine recipe via resource condition
